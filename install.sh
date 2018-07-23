@@ -1,3 +1,4 @@
-#/usr/bin/env sh
-cp $HOME/config/dotfiles/* $HOME/ -r
-rm $HOME/install.sh
+#!/usr/bin/env bash
+PATH="realpath $0";
+DIRPATH="dirname $PATH";
+/bin/cp "${DIRNAME}/home/" "${HOME}/" -R
