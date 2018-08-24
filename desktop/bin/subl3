@@ -1,2 +1,0 @@
-#!/usr/bin/env sh
-/usr/bin/subl3 -n "$@"
