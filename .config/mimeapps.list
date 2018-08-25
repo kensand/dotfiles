@@ -1,0 +1,4 @@
+[Added Associations]
+application/xml=firefox.desktop;
+video/x-matroska=vlc.desktop;
+video/mp4=vlc.desktop;
