@@ -1,0 +1,5 @@
+#!/bin/bash
+pushd $HOME/git/Daily-Reddit-Wallpaper
+./change_wallpaper_reddit.py
+popd
+
