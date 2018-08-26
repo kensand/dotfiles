@@ -3,6 +3,7 @@
 !.config/
 !.config/*
 !.config/*/*
+!.config/**
 !.vim/
 !.vim/*
 !.vim/*/*

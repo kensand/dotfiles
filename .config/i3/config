@@ -166,7 +166,7 @@ bindsym $mod+r mode "resize"
 # finds out, if available)
 bar {
 	colors {
-		background #000000
+		background #200020
 		statusline #00A5FF #that neon blue
 		separator #666666
 
