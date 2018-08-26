@@ -12,10 +12,20 @@ general {
 }
 
 order += "ipv6"
-order += "ethernet _first_"
 order += "disk /"
+order += "run_watch DHCP"
+order += "run_watch VPN"
+order += "wireless _first_"
+order += "volume master"
+order += "battery 0"
 order += "load"
 order += "tztime local"
+
+volume master { 
+	format = "VOL: %volume"
+	format_muted = "VOL: muted (%volume)"
+	device = "pulse"
+}
 
 wireless _first_ {
         format_up = "W: (%quality at %essid) %ip"
@@ -28,8 +38,17 @@ ethernet _first_ {
         format_down = "E: down"
 }
 
-battery all {
+battery 0 {
         format = "%status %percentage %remaining"
+	path = "/sys/class/power_supply/BATC/uevent"
+}
+
+run_watch DHCP {
+        pidfile = "/var/run/dhcpcd.pid"
+}
+
+run_watch VPN {
+        pidfile = "$HOME/.config/expressvpn/expressvpn-agent.pid"
 }
 
 tztime local {
@@ -43,3 +62,4 @@ load {
 disk "/" {
         format = "%avail"
 }
+
