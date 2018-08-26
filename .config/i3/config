@@ -179,7 +179,9 @@ bar {
 }
 
 
-exec_always $HOME/.config/polybar/launch.sh
+#exec_always $HOME/.config/polybar/launch.sh
+exec_always --no-startup-id killall wicd-client && sleep 1 && /usr/bin/wicd-client -t &
+exec_always --no-startup-id onboard
 exec_always --no-startup-id /usr/bin/compton -b
 smart_gaps on
 
@@ -187,9 +189,18 @@ bindcode $mod+Shift+Control+21 gaps inner all plus 5; gaps outer all plus 5
 
 bindcode $mod+Shift+Control+20 gaps inner all minus 5; gaps outer all minus 5
 
-# start dmenu (a program launcher)
-bindsym $mod+d exec dmenu_run -y 32 -h 50 -w 500 -fn 20 -sf cyan -sb black -nf '#dd00dd' -nb '#404040'
+# Pulse Audio controls
+bindsym $mod+F12 exec --no-startup-id pactl -- set-sink-volume 0 +5% #increase sound volume
+bindsym $mod+F11 exec --no-startup-id pactl -- set-sink-volume 0 -5% #decrease sound volume
+bindsym $mod+F10 exec --no-startup-id pactl set-sink-mute 0 toggle # mute sound
 
+# Sreen brightness controls
+bindsym $mod+F6 exec --no-startup-id $HOME/bin/brightness.sh + DSI-1 .1 # increase screen brightness
+bindsym $mod+F5 exec --no-startup-id $HOME/bin/brightness.sh - DSI-1 .1 # decrease screen brightness
+
+# start dmenu (a program launcher)
+#bindsym $mod+d exec dmenu_run -y 32 -h 50 -w 500 -fn 20 -sf cyan -sb black -nf '#dd00dd' -nb '#404040'
+bindsym $mod+d exec $HOME/bin/dmenuwrap
 # class                 border  backgr. text    indicator child_border
 client.focused          #20aaaa #063030 #ffffff #20aaaa   #20aaaa
 client.focused_inactive #333333 #5f676a #ffffff #484e50   #5f676a
@@ -209,7 +220,8 @@ hide_edge_borders smart
 exec_always --no-startup-id $HOME/.screenlayout/layout1.sh
 #exec_always --no-startup-id feh --bg-fill $HOME/.config/i3/bg1.png
 exec_always --no-startup-id $HOME/bin/chwall
-#set gaps inner all set 10
-#set gaps outer all set 10
+
+#gaps inner all set 10
+#gaps outer all set 10
 
 for_window [class="^.*"] border pixel 1

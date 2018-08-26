@@ -44,7 +44,7 @@ battery 0 {
 }
 
 run_watch DHCP {
-        pidfile = "/var/run/dhcpcd.pid"
+        pidfile = "/var/run/dhclient.pid"
 }
 
 run_watch VPN {
