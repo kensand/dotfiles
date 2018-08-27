@@ -10,4 +10,4 @@
 [difftool]
   prompt = false
 [diff]
-tool = vimdiff
+tool = nvimdiff
