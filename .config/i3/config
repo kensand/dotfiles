@@ -224,4 +224,4 @@ exec_always --no-startup-id synclient TapButton3="2" TapButton1="1" TapButton2="
 #gaps inner all set 10
 #gaps outer all set 10
 
-#for_window [class="^.*"] border pixel 1
+for_window [class="^.*"] border pixel 1
