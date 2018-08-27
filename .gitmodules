@@ -3,4 +3,4 @@
 	url = https://github.com/robbyrussell/oh-my-zsh.git
 [submodule ".config/Daily-Reddit-Wallpaper"]
 	path = .config/Daily-Reddit-Wallpaper
-	url = http://github.com/kensand/Daily-Reddit-Wallpaper
+	url = https://github.com/kensand/Daily-Reddit-Wallpaper
