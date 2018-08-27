@@ -1,0 +1,5 @@
+#!/bin/bash
+pushd $HOME/.config/Daily-Reddit-Wallpaper
+./change_wallpaper_reddit.py
+popd
+

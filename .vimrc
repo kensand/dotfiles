@@ -21,4 +21,5 @@ Plug 'zchee/deoplete-clang'
 
 
 call plug#end()
+colorscheme slate
 set backspace=indent,eol,start
