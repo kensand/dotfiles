@@ -1,0 +1,7 @@
+function git-add-push-all() {
+  while read -r name url method; do
+    git config --add remote.all.url "$url"
+  done < <(git remote -v | awk '!/^all/ && /push/')
+}
+
+git-add-push-all # from git (sub)directory
