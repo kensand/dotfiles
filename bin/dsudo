@@ -1,2 +1,3 @@
-#!/bin/bash
-/bin/xfce4-terminal -e sudo "${@:2}"
+#!/bin/zsh
+/bin/xfce4-terminal -e "sudo ${@:2} && /bin/bash"
+

@@ -225,3 +225,17 @@ exec_always --no-startup-id synclient TapButton3="2" TapButton1="1" TapButton2="
 #gaps outer all set 10
 
 for_window [class="^.*"] border pixel 1
+bindsym $mod+C exec i3-input -F 'workspace %s' -P 'go to workspace: '
+bindsym $mod+X exec i3-input -F 'move container to workspace %s' -P 'move to workspace: '
+bindsym $mod+Shift+Control+Right exec i3-msg "move workspace to output right"
+bindsym $mod+Shift+Control+Left exec i3-msg "move workspace to output left"
+bindsym $mod+Shift+Control+Up exec i3-msg "move workspace to output up"
+bindsym $mod+Shift+Control+Down exec i3-msg "move container to output down"
+
+bindsym $mod+Control+Right exec i3-msg "move container to output right"
+bindsym $mod+Control+Left exec i3-msg "move container to output left"
+bindsym $mod+Control+Up exec i3-msg "move container to output up"
+bindsym $mod+Control+Down exec i3-msg "move container to output down"
+
+
+
