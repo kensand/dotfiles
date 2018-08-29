@@ -5,7 +5,6 @@
 # The following line should contain a sharp s:
 # ß
 # If the above line is not correctly displayed, fix your editor first!
-
 general {
         colors = true
         interval = 5
@@ -17,6 +16,7 @@ order += "disk /"
 #order += "run_watch VPN"
 #order += "wireless _first_"
 order += "volume master"
+order += "ethernet _first_"
 #order += "battery 0"
 order += "load"
 order += "tztime local"
@@ -24,9 +24,8 @@ order += "tztime local"
 volume master { 
 	format = "VOL: %volume"
 	format_muted = "VOL: muted (%volume)"
-	device = "pulse"
+	device = "default"
 }
-
 wireless _first_ {
         format_up = "W: (%quality at %essid) %ip"
         format_down = "W: down"
@@ -52,7 +51,7 @@ run_watch VPN {
 }
 
 tztime local {
-        format = "%Y-%m-%d %H:%M:%S"
+        format = "%m-%d %I:%M:%S %p"
 }
 
 load {

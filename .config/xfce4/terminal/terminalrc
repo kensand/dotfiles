@@ -34,4 +34,5 @@ ScrollingBar=TERMINAL_SCROLLBAR_NONE
 BackgroundMode=TERMINAL_BACKGROUND_TRANSPARENT
 BackgroundImageShading=0.800000
 BackgroundDarkness=0.700000
+CustomCommand=/usr/bin/zsh
 
