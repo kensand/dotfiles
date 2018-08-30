@@ -193,8 +193,8 @@ bindcode $mod+Shift+Control+21 gaps inner all plus 5; gaps outer all plus 5
 bindcode $mod+Shift+Control+20 gaps inner all minus 5; gaps outer all minus 5
 exec_always --no-startup-id i3-msg gaps inner all set 10 && i3-msg gaps outer all set 10
 # Pulse Audio controls
-bindsym $mod+F12 exec --no-startup-id pactl -- set-sink-volume 0 +5% #increase sound volume
-bindsym $mod+F11 exec --no-startup-id pactl -- set-sink-volume 0 -5% #decrease sound volume
+bindsym $mod+F12 exec --no-startup-id pactl set-sink-volume 0 +5% #increase sound volume
+bindsym $mod+F11 exec --no-startup-id pactl set-sink-volume 0 -5% #decrease sound volume
 bindsym $mod+F10 exec --no-startup-id pactl set-sink-mute 0 toggle # mute sound
 
 # Sreen brightness controls
