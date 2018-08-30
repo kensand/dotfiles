@@ -183,7 +183,7 @@ bindsym $mod+r mode "resize"
 exec_always --no-startup-id $HOME/.config/polybar/launch.sh
 
 #exec_always $HOME/.config/polybar/launch.sh
-exec_always --no-startup-id killall wicd-client && sleep 1 && /usr/bin/wicd-client -t &
+exec_always --no-startup-id killall wicd-client && sleep 2 && /usr/bin/wicd-client -t &
 exec_always --no-startup-id onboard
 exec_always --no-startup-id /usr/bin/compton -b
 smart_gaps on
