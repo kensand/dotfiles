@@ -1,0 +1,4 @@
+#!/bin/bash
+WALLPAPER="$HOME/Pictures/Wallpapers/$(ls $HOME/Pictures/Wallpapers |sort -R |tail -1)"
+echo $WALLPAPER
+feh --bg-fill $WALLPAPER
