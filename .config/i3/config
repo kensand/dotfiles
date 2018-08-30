@@ -221,7 +221,7 @@ default_border pixel 10
 hide_edge_borders smart
 
 exec_always --no-startup-id $HOME/.screenlayout/layout1.sh
-#exec_always --no-startup-id feh --bg-fill $HOME/.config/i3/bg1.png
+exec_always --no-startup-id $HOME/bin/ldwall
 exec_always --no-startup-id $HOME/bin/chwall
 exec_always --no-startup-id synclient TapButton3="2" TapButton1="1" TapButton2="3"
 #gaps inner all set 10
