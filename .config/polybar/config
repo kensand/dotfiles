@@ -59,7 +59,7 @@ font-2 = siji:pixelsize=10;1
 
 modules-left = bspwm i3
 modules-center = 
-modules-right = filesystem xbacklight pulseaudio xkeyboard memory cpu eth temperature date powermenu
+modules-right = filesystem xbacklight pulseaudio xkeyboard memory cpu wlan battery date powermenu
 
 tray-position = right
 tray-padding = 2
@@ -223,7 +223,7 @@ label = %percentage_used%%
 
 [module/wlan]
 type = internal/network
-interface = net1
+interface = wlan0
 interval = 3.0
 
 format-connected = <ramp-signal> <label-connected>
@@ -332,7 +332,7 @@ bar-volume-empty-foreground = ${colors.foreground-alt}
 
 [module/battery]
 type = internal/battery
-battery = BAT0
+battery = BATC
 adapter = ADP1
 full-at = 98
 
