@@ -21,7 +21,6 @@
 background = #aa000000
 background-alt = #da000000
 ;foreground = ${xrdb:color7:#222}
->>>>>>> parent of 51c27a7... switched to just earthporn
 foreground = #dfdfdf
 foreground-alt = #555
 primary = #20aaaa
@@ -60,7 +59,7 @@ font-2 = siji:pixelsize=10;1
 
 modules-left = bspwm i3
 modules-center = xwindow
-modules-right = filesystem xbacklight pulseaudio xkeyboard memory cpu wlan battery date powermenu
+modules-right = filesystem xbacklight pulseaudio xkeyboard memory cpu eth temperature date powermenu
 
 tray-position = right
 tray-padding = 2
@@ -212,7 +211,7 @@ interval = 2
 format-prefix = " "
 format-prefix-foreground = ${colors.foreground-alt}
 format-underline = #f90000
-label = %percentage:2%%
+label = CPU: %percentage:3%%
 
 [module/memory]
 type = internal/memory
@@ -220,7 +219,7 @@ interval = 2
 format-prefix = " "
 format-prefix-foreground = ${colors.foreground-alt}
 format-underline = #4bffdc
-label = %percentage_used%%
+label = RAM: %percentage_used%%
 
 [module/wlan]
 type = internal/network
