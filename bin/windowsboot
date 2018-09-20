@@ -33,6 +33,7 @@ export QEMU_AUDIO_DRV=pa
 #sudo pulseaudio -D
 sudo vfio-bind 0000:02:00.0 0000:02:00.1 0000:00:1f.6 0000:0a:00.0
 #sudo echo $QEMU_AUDIO_DRV
+pulseaudio -k
 pactl load-module module-loopback source=alsa_input.pci-0000_00_1f.3.analog-stereo sink=alsa_output.pci-0000_00_1f.3.analog-stereo
 sudo qemu-system-x86_64 \
 -enable-kvm \

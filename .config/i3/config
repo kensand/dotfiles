@@ -180,9 +180,7 @@ bindsym $mod+r mode "resize"
 #	status_command polybar example 
 
 #}
-exec_always --no-startup-id $HOME/.config/polybar/launch.sh
-
-#exec_always $HOME/.config/polybar/launch.sh
+exec_always --no-startup-id $HOME/.screenlayout/3monitors.sh &
 exec_always --no-startup-id killall wicd-client && sleep 1 && /usr/bin/wicd-client -t &
 exec_always --no-startup-id onboard
 exec_always --no-startup-id /usr/bin/compton -b
@@ -193,9 +191,15 @@ bindcode $mod+Shift+Control+21 gaps inner all plus 5; gaps outer all plus 5
 bindcode $mod+Shift+Control+20 gaps inner all minus 5; gaps outer all minus 5
 exec_always --no-startup-id i3-msg gaps inner all set 10 && i3-msg gaps outer all set 10
 # Pulse Audio controls
-bindsym $mod+F12 exec --no-startup-id pactl set-sink-volume 0 +5% #increase sound volume
-bindsym $mod+F11 exec --no-startup-id pactl set-sink-volume 0 -5% #decrease sound volume
-bindsym $mod+F10 exec --no-startup-id pactl set-sink-mute 0 toggle # mute sound
+#bindsym $mod+F12 exec --no-startup-id pactl set-sink-volume 0 +5% #increase sound volume
+#bindsym $mod+F11 exec --no-startup-id pactl set-sink-volume 0 -5% #decrease sound volume
+#bindsym $mod+F10 exec --no-startup-id pactl set-sink-mute 0 toggle # mute sound
+
+# Pulse Audio controls
+bindsym XF86AudioRaiseVolume exec --no-startup-id pactl set-sink-volume 0 +5% #increase sound volume
+bindsym XF86AudioLowerVolume exec --no-startup-id pactl set-sink-volume 0 -5% #decrease sound volume
+bindsym XF86AudioMute exec --no-startup-id pactl set-sink-mute 0 toggle # mute sound
+
 
 # Sreen brightness controls
 bindsym $mod+F6 exec --no-startup-id $HOME/bin/brightness.sh + DSI-1 .1 # increase screen brightness
@@ -220,10 +224,17 @@ bindsym --whole-window $mod+button2 kill
 default_border pixel 10
 hide_edge_borders smart
 
-exec_always --no-startup-id $HOME/.screenlayout/layout1.sh
 exec_always --no-startup-id $HOME/bin/ldwall
 exec_always --no-startup-id $HOME/bin/chwall
 exec_always --no-startup-id synclient TapButton3="2" TapButton1="1" TapButton2="3"
+exec_always --no-startup-id $HOME/.config/polybar/launch.sh
+
+exec_always --no-startup-id killall -q udiskie; while pgrep -u $UID -x udiskie >/dev/null; do sleep 1; done; udiskie --tray &
+exec --no-startup-id i3-msg 'workspace Thunderbird; exec thunderbird; move workspace to output DP-2'
+exec --no-startup-id i3-msg 'workspace Firefox; exec firefox; move workspace to output DVI-D-1'
+exec --no-startup-id i3-msg 'workspace Windows; exec xfce4-terminal -e $HOME/bin/windowsboot; move workspace to output DP-1'
+
+
 #gaps inner all set 10
 #gaps outer all set 10
 
@@ -240,5 +251,5 @@ bindsym $mod+Control+Left exec i3-msg "move container to output left"
 bindsym $mod+Control+Up exec i3-msg "move container to output up"
 bindsym $mod+Control+Down exec i3-msg "move container to output down"
 
-
-
+bindsym $mod+Tab workspace next
+bindsym $mod+Shift+Tab workspace prev

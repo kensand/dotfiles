@@ -11,3 +11,5 @@
   prompt = false
 [diff]
 tool = nvimdiff
+[core]
+	editor = nvim
