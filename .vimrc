@@ -17,9 +17,22 @@ autocmd InsertLeave,CompleteDone * if pumvisible() == 0 | pclose | endif
 inoremap <expr><tab> pumvisible() ? "\<c-n>" : "\<tab>"
 Plug 'zchee/deoplete-jedi'
 
-Plug 'zchee/deoplete-clang'
+Plug 'Shougo/deoplete-clangx'
 Plug 'carlitux/deoplete-ternjs', { 'do': 'npm install -g tern' }
+  " For func argument completion
+Plug 'Shougo/neosnippet'
+Plug 'Shougo/neosnippet-snippets'
+Plug 'Shougo/neoinclude.vim'
 
 call plug#end()
 colorscheme slate
 set backspace=indent,eol,start
+
+" deoplete
+
+let g:deoplete#enable_at_startup = 1
+
+" neosnippet
+        
+let g:neosnippet#enable_completed_snippet = 1
+

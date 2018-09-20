@@ -1,13 +1,5 @@
 [user]
 	email = kennysandersschool@gmail.com
 	name = Kenneth Sanders
-[merge]
-  tool = nvimdiff
-[mergetool]
-  prompt = true
-[mergetool "nvimdiff"]
-  cmd = nvim -d $LOCAL $REMOTE 
-[difftool]
-  prompt = false
-[diff]
-tool = nvimdiff
+[core]
+	editor = nvim
