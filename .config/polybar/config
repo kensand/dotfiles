@@ -21,7 +21,6 @@
 background = #aa000000
 background-alt = #da000000
 ;foreground = ${xrdb:color7:#222}
->>>>>>> parent of 51c27a7... switched to just earthporn
 foreground = #dfdfdf
 foreground-alt = #555
 primary = #20aaaa
@@ -63,6 +62,7 @@ modules-center = xwindow
 modules-right = filesystem xbacklight pulseaudio xkeyboard memory cpu wlan battery date powermenu
 
 tray-position = right
+tray-detatched = true
 tray-padding = 2
 ;tray-transparent = true
 ;tray-background = #0063ff
@@ -363,6 +363,8 @@ animation-discharging-1 = 
 animation-discharging-2 = 
 animation-discharging-foreground = ${colors.foreground-alt}
 animation-discharging-framerate = 750
+
+time-format = %H:%M
 
 [module/temperature]
 type = internal/temperature

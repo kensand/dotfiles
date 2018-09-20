@@ -183,8 +183,10 @@ bindsym $mod+r mode "resize"
 exec_always --no-startup-id $HOME/.config/polybar/launch.sh
 
 #exec_always $HOME/.config/polybar/launch.sh
-exec_always --no-startup-id killall wicd-client && sleep 2 && /usr/bin/wicd-client -t &
-exec_always --no-startup-id onboard
+#exec_always --no-startup-id killall wicd-client && sleep 2 && /usr/bin/wicd-client -t &
+
+exec_always --no-startup-id /usr/bin/nm-applet &
+exec_always --no-startup-id onboard &
 exec_always --no-startup-id /usr/bin/compton -b
 smart_gaps on
 
@@ -223,7 +225,8 @@ hide_edge_borders smart
 exec_always --no-startup-id $HOME/.screenlayout/layout1.sh
 exec_always --no-startup-id $HOME/bin/ldwall
 exec_always --no-startup-id $HOME/bin/chwall
-exec_always --no-startup-id synclient TapButton3="2" TapButton1="1" TapButton2="3"
+exec_always --no-startup-id sleep 5 & synclient TapButton3="2" TapButton1="1" TapButton2="3"
+exec_always --no-startup-id xfce4-power-manager
 #gaps inner all set 10
 #gaps outer all set 10
 

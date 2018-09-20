@@ -18,7 +18,7 @@ inoremap <expr><tab> pumvisible() ? "\<c-n>" : "\<tab>"
 Plug 'zchee/deoplete-jedi'
 
 Plug 'zchee/deoplete-clang'
-
+Plug 'carlitux/deoplete-ternjs', { 'do': 'npm install -g tern' }
 
 call plug#end()
 colorscheme slate
