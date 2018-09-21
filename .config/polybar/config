@@ -59,7 +59,7 @@ font-2 = siji:pixelsize=10;1
 
 modules-left = bspwm i3
 modules-center = xwindow
-modules-right = filesystem xbacklight pulseaudio xkeyboard memory cpu eth temperature date powermenu
+modules-right = filesystem xbacklight pulseaudio xkeyboard memory cpu wlan battery date powermenu
 
 tray-position = right
 tray-detatched = true
@@ -337,10 +337,10 @@ battery = BATC
 adapter = ADP1
 full-at = 98
 
-format-charging = <animation-charging> <label-charging>
+format-charging = <animation-charging> CHR: <label-charging>
 format-charging-underline = #ffb52a
 
-format-discharging = <animation-discharging> <label-discharging>
+format-discharging = <animation-discharging> BAT: <label-discharging>
 format-discharging-underline = ${self.format-charging-underline}
 
 format-full-prefix = " "
