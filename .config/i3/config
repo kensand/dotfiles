@@ -234,6 +234,7 @@ exec --no-startup-id i3-msg 'workspace Thunderbird; exec thunderbird; move works
 exec --no-startup-id i3-msg 'workspace Firefox; exec firefox; move workspace to output DVI-D-1'
 exec --no-startup-id i3-msg 'workspace Windows; exec xfce4-terminal -e $HOME/bin/windowsboot; move workspace to output DP-1'
 
+exec_always pkill pomodoro; $HOME/bin/pomodoro
 
 #gaps inner all set 10
 #gaps outer all set 10

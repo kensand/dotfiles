@@ -2,7 +2,7 @@
 export PATH=$HOME/bin:/usr/local/bin:$PATH
 
 # Path to your oh-my-zsh installation.
-  export ZSH="/home/kenny/.oh-my-zsh"
+export ZSH="/home/kenny/.oh-my-zsh"
 
 # Set name of the theme to load. Optionally, if you set this to "random"
 # it'll load a random theme each time that oh-my-zsh is loaded.
@@ -36,10 +36,10 @@ ZSH_THEME="gallois"
 # DISABLE_AUTO_TITLE="true"
 
 # Uncomment the following line to enable command auto-correction.
-# ENABLE_CORRECTION="true"
+ENABLE_CORRECTION="true"
 
 # Uncomment the following line to display red dots whilst waiting for completion.
-# COMPLETION_WAITING_DOTS="true"
+COMPLETION_WAITING_DOTS="true"
 
 # Uncomment the following line if you want to disable marking untracked files
 # under VCS as dirty. This makes repository status check for large repositories
@@ -94,15 +94,7 @@ source $ZSH/oh-my-zsh.sh
 #
 # Example aliases
 EDITOR="nvim"
-alias zshconfig="$EDITOR ~/.zshrc"
-alias ohmyzsh="$EDITOR ~/.oh-my-zsh"
-alias n="$EDITOR"
-alias nn="$HOME/bin/nnvim"
-alias i3config="$EDITOR ~/.config/i3/config"
-alias l="ls -lah"
-alias vimconfig="$EDITOR ~/.vimrc"
-alias sc="systemctl"
-alias sus="systemctl suspend"
-alias s="sudo"
+source $HOME/.zsh_aliases
+
 bindkey "${terminfo[khome]}" beginning-of-line
 bindkey "${terminfo[kend]}" end-of-line
