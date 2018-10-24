@@ -39,6 +39,7 @@
 !.zshrc
 !.bashrc
 !.Xdefaults
+!.Xresources
 !bin/
 !bin/*
 !bin/*/*
