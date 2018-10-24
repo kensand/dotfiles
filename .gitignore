@@ -32,6 +32,7 @@
 !.oh-my-zsh/*
 !.zshrc
 !.bashrc
+!.Xresources
 !bin/
 !bin/*
 !bin/*/*

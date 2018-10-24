@@ -15,17 +15,25 @@
 ;   The README contains alot of information
 ;
 ;==========================================================
-
 [colors]
+background = ${xrdb:color0:#aa000000}
+background-alt=${xrdb:color1:#da000000}
+foreground = ${xrdb:color7:#dfdfdf}
+foreground-alt = ${xrdb:color7:#555}
+primary = ${xrdb:color1:#20aaaa}
+secondary = ${xrdb:color2:#aa2020}
+alert = ${xrdb:color3:#882288}
+
+;[colors]
 ;background = ${xrdb:color0:#222}
-background = #aa000000
-background-alt = #da000000
+;background = #aa000000
+;background-alt = #da000000
 ;foreground = ${xrdb:color7:#222}
-foreground = #dfdfdf
-foreground-alt = #555
-primary = #20aaaa
-secondary = #aa2020
-alert = #882288
+;foreground = #dfdfdf
+;foreground-alt = #555
+;primary = #20aaaa
+;secondary = #aa2020
+;alert = #882288
 
 
 [bar/bar1]
@@ -57,12 +65,12 @@ font-0 = fixed:pixelsize=10;1
 font-1 = unifont:fontformat=truetype:size=8:antialias=false;0
 font-2 = siji:pixelsize=10;1
 
-modules-left = bspwm i3
+modules-left = powermenu bspwm i3
 modules-center = xwindow
-modules-right = filesystem xbacklight pulseaudio xkeyboard memory cpu wlan battery date powermenu
+modules-right = filesystem xbacklight pulseaudio xkeyboard memory cpu wlan battery date
 
-tray-position = right
-tray-detatched = true
+tray-position = left
+tray-detatched = false
 tray-padding = 2
 ;tray-transparent = true
 ;tray-background = #0063ff
@@ -83,7 +91,7 @@ cursor-scroll = ns-resize
 
 [module/xwindow]
 type = internal/xwindow
-label = %title:0:120:...%
+label = %title:0:40:...%
 
 [module/xkeyboard]
 type = internal/xkeyboard

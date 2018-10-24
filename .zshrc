@@ -104,5 +104,8 @@ alias vimconfig="$EDITOR ~/.vimrc"
 alias sc="systemctl"
 alias sus="systemctl suspend"
 alias s="sudo"
+alias fsize="du -sh"
+alias sudo="sudo "
+
 bindkey "${terminfo[khome]}" beginning-of-line
 bindkey "${terminfo[kend]}" end-of-line

@@ -30,7 +30,7 @@ font pango:DejaVu Sans Mono 8
 floating_modifier $mod
 
 # start a terminal
-bindsym $mod+Return exec i3-sensible-terminal
+bindsym $mod+Return exec xfce4-terminal
 
 # kill focused window
 bindsym $mod+Shift+q kill
@@ -193,33 +193,48 @@ smart_gaps on
 bindcode $mod+Shift+Control+21 gaps inner all plus 5; gaps outer all plus 5
 
 bindcode $mod+Shift+Control+20 gaps inner all minus 5; gaps outer all minus 5
-exec_always --no-startup-id i3-msg gaps inner all set 10 && i3-msg gaps outer all set 10
+exec_always --no-startup-id i3-msg "gaps inner all set 10" && i3-msg "gaps outer all set 10"
 # Pulse Audio controls
 #bindsym $mod+F12 exec --no-startup-id pactl set-sink-volume 0 +5% #increase sound volume
 #bindsym $mod+F11 exec --no-startup-id pactl set-sink-volume 0 -5% #decrease sound volume
 #bindsym $mod+F10 exec --no-startup-id pactl set-sink-mute 0 toggle # mute sound
 
 # Pulse Audio controls
-bindsym XF86AudioRaiseVolume exec --no-startup-id pactl set-sink-volume 0 +5% #increase sound volume
-bindsym XF86AudioLowerVolume exec --no-startup-id pactl set-sink-volume 0 -5% #decrease sound volume
+bindsym XF86AudioRaiseVolume exec --no-startup-id pactl set-sink-volume 0 +3% #increase sound volume
+bindsym XF86AudioLowerVolume exec --no-startup-id pactl set-sink-volume 0 -3% #decrease sound volume
 bindsym XF86AudioMute exec --no-startup-id pactl set-sink-mute 0 toggle # mute sound
 
 
 # Sreen brightness controls
-bindsym $mod+F6 exec --no-startup-id $HOME/bin/brightness.sh + DSI-1 .1 # increase screen brightness
-bindsym $mod+F5 exec --no-startup-id $HOME/bin/brightness.sh - DSI-1 .1 # decrease screen brightness
+bindsym $mod+F6 exec --no-startup-id $HOME/bin/brightness.sh + DSI-1 .01 # increase screen brightness
+bindsym $mod+F5 exec --no-startup-id $HOME/bin/brightness.sh - DSI-1 .01 # decrease screen brightness
 
 # start dmenu (a program launcher)
 #bindsym $mod+d exec dmenu_run -y 32 -h 50 -w 500 -fn 20 -sf cyan -sb black -nf '#dd00dd' -nb '#404040'
 bindsym $mod+d exec $HOME/bin/dmenuwrap
 # class                 border  backgr. text    indicator child_border
-client.focused          #20aaaa #063030 #ffffff #20aaaa   #20aaaa
-client.focused_inactive #333333 #5f676a #ffffff #484e50   #5f676a
-client.unfocused        #882288 #200320 #aaaaaa #882288   #882288
-client.urgent           #2f343a #900000 #ffffff #900000   #900000
-client.placeholder      #000000 #0c0c0c #ffffff #000000   #0c0c0c
+#client.focused          #20aaaa #063030 #ffffff #20aaaa   #20aaaa
+#client.focused_inactive #333333 #5f676a #ffffff #484e50   #5f676a
+#client.unfocused        #882288 #200320 #aaaaaa #882288   #882288
+#client.urgent           #2f343a #900000 #ffffff #900000   #900000
+#client.placeholder      #000000 #0c0c0c #ffffff #000000   #0c0c0c
 
-client.background       #ffffff
+#client.background       #ffffff
+
+
+set_from_resource $fg color1 #20aaaa
+set_from_resource $bg background #063030
+set_from_resource $a color4 #882288
+set_from_resource $b color5 #900000
+set_from_resource $c color6 #af343a
+# class                 border  backgr. text indicator child_border
+client.focused          $fg     $bg     $fg  $fg       $fg
+client.focused_inactive $a      $bg     $fg  $a        $a
+client.unfocused        $a      $bg     $fg  $a        $a
+client.urgent           $c      $bg     $fg  $c        $c
+client.placeholder      $c      $bg     $fg  $c        $c
+
+client.background       $bg
 
 #kill commands with mouse
 bindsym --release button2 kill
@@ -236,7 +251,7 @@ exec_always --no-startup-id xfce4-power-manager
 #gaps inner all set 10
 #gaps outer all set 10
 
-for_window [class="^.*"] border pixel 1
+for_window [class="^.*"] border pixel 2
 bindsym $mod+C exec i3-input -F 'workspace %s' -P 'go to workspace: '
 bindsym $mod+X exec i3-input -F 'move container to workspace %s' -P 'move to workspace: '
 bindsym $mod+Shift+Control+Right exec i3-msg "move workspace to output right"
