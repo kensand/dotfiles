@@ -1,6 +1,9 @@
 *
 !.gitignore
 !.gitconfig
+!.config/tmux-sessionist
+!.config/tmux-sidebar
+!.tmux.conf
 !.config/
 !.config/i3
 !.config/i3status
@@ -8,6 +11,7 @@
 !.config/xfce4
 !.config/nvim
 !.config/polybar
+!.config/oh-my-zsh
 !.config/polybar/**
 !.config/i3/**
 !.config/i3status/**
@@ -32,8 +36,8 @@
 !.oh-my-zsh/*
 !.zshrc
 !.bashrc
-!.Xresources
+!.Xdefaults
 !bin/
 !bin/*
 !bin/*/*
-
+!.zsh_aliases

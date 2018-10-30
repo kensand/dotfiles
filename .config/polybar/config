@@ -17,12 +17,12 @@
 ;==========================================================
 [colors]
 background = ${xrdb:color0:#aa000000}
-background-alt=${xrdb:color1:#da000000}
-foreground = ${xrdb:color7:#dfdfdf}
-foreground-alt = ${xrdb:color7:#555}
-primary = ${xrdb:color1:#20aaaa}
-secondary = ${xrdb:color2:#aa2020}
-alert = ${xrdb:color3:#882288}
+background-alt=${xrdb:color8:#da000000}
+foreground = ${xrdb:color1:#dfdfdf}
+foreground-alt = ${xrdb:color9:#555}
+primary = ${xrdb:color3:#20aaaa}
+secondary = ${xrdb:color4:#aa2020}
+alert = ${xrdb:color6:#882288}
 
 ;[colors]
 ;background = ${xrdb:color0:#222}

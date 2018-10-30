@@ -1,5 +1,5 @@
 [Configuration]
-FontName=FreeMono 11
+FontName=FreeMono 12
 MiscAlwaysShowTabs=FALSE
 MiscBell=FALSE
 MiscBellUrgent=FALSE
@@ -20,7 +20,7 @@ MiscTabPosition=GTK_POS_TOP
 MiscHighlightUrls=TRUE
 MiscMiddleClickOpensUri=FALSE
 MiscCopyOnSelect=FALSE
-MiscShowRelaunchDialog=TRUE
+MiscShowRelaunchDialog=FALSE
 MiscRewrapOnResize=TRUE
 MiscUseShiftArrowsToScroll=FALSE
 MiscSlimTabs=FALSE

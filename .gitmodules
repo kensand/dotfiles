@@ -1,6 +1,12 @@
-[submodule ".oh-my-zsh"]
-	path = .oh-my-zsh
+[submodule ".config/oh-my-zsh"]
+	path = .config/oh-my-zsh
 	url = https://github.com/robbyrussell/oh-my-zsh.git
 [submodule ".config/Daily-Reddit-Wallpaper"]
 	path = .config/Daily-Reddit-Wallpaper
-	url = https://github.com/kensand/Daily-Reddit-Wallpaper
+	url = https://gitlab.com/kensand/Daily-Reddit-Wallpaper
+[submodule ".config/tmux-sessionist"]
+	path = .config/tmux-sessionist
+	url = https://github.com/tmux-plugins/tmux-sessionist
+[submodule ".config/tmux-sidebar"]
+	path = .config/tmux-sidebar
+	url = https://github.com/tmux-plugins/tmux-sidebar

@@ -1,0 +1,8 @@
+#!/bin/bash
+echo "Pomodoro started $(date)"  > $HOME/.pomodoro.log
+while true
+do
+sleep 900
+notify-send --icon=gtk-info Break "Break for 15 secs"
+date >> $HOME/.pomodoro.log
+done

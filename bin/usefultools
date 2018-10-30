@@ -1,0 +1,8 @@
+sudo pacman -Syu pkgfile \
+otf-fira-code \
+ttf-fira-code \
+gtop \
+neovim \
+xfce4-terminal \
+compton \
+
