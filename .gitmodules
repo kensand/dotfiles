@@ -12,4 +12,4 @@
 	url = https://github.com/tmux-plugins/tmux-sidebar.git
 [submodule ".config/i3-workspace-names-daemon"]
 	path = .config/i3-workspace-names-daemon
-	url = https://github.com/cboddy/i3-workspace-names-daemon.git
+	url = http://github.com/kensand/i3-workspace-names-daemon
