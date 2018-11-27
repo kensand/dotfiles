@@ -1,0 +1,72 @@
+#!/bin/bash
+
+# ASUS T100TA screen brightness control script.
+#
+# This script invokes xrandr to increase or decrease the brightness of
+# the screen by applying a software only modification that therefore
+# doesn't affect the power consumption. See the xrandr manual for more
+# info. This script also uses bc for floating point calculations.
+# Please note that Redshift (and possibly other similar applications),
+# if it is running, resets the brightness value every time and it
+# needs to be disabled.
+
+# Copyright 2017 Francesco De Vita <devfra[at]inventati[dot]org>
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+# implied.  See the License for the specific language governing
+# permissions and limitations under the License.
+
+
+# Min and max screen brigthness, correct values are between 0 and 1.
+min_brightness=0.2
+max_brightness=1
+
+
+# Display usage if wrong input arguments are supplied.
+if [[ $# -ne 1 ]] || [[ $1 != "decrease" && $1 != "increase" ]]
+then
+    echo "ASUS T100TA screen brightness control script"
+    echo "Usage: $0 [decrease|increase]"
+    exit 1
+fi
+
+
+# Check if xrandr and bc are installed.
+hash xrandr 2>/dev/null || { echo "xrandr is not installed"; exit 1; }
+hash bc 2>/dev/null || { echo "bc is not installed"; exit 1; }
+
+
+# Xrandr output for the screen, supposing no external screen attached.
+screen_output=$(xrandr | grep -w connected | cut -d" " -f1)
+
+# Current brightness.
+brightness=$(xrandr --current --verbose | grep Bright | cut -d" " -f2)
+
+
+# Decrease or increase the screen brightness.
+case $1 in
+    decrease)
+        if [[ $(echo "$brightness>$min_brightness" | bc) -eq 1 ]]
+        then
+            brightness=$(echo "$brightness-0.2" | bc)
+            xrandr --output $screen_output --brightness $brightness
+        fi
+        ;;
+    increase)
+        if [[ $(echo "$brightness<$max_brightness" | bc) -eq 1 ]]
+        then
+            brightness=$(echo "$brightness+0.2" | bc)
+            xrandr --output $screen_output --brightness $brightness
+        fi
+        ;;
+esac
+
+exit 0

@@ -1,0 +1,42 @@
+[Configuration]
+<<<<<<< HEAD
+FontName=FreeMono 11
+=======
+FontName=FreeMono 12
+>>>>>>> d0b0c4c0998688bad5c132224894b53dad62191a
+MiscAlwaysShowTabs=FALSE
+MiscBell=FALSE
+MiscBellUrgent=FALSE
+MiscBordersDefault=FALSE
+MiscCursorBlinks=FALSE
+MiscCursorShape=TERMINAL_CURSOR_SHAPE_BLOCK
+MiscDefaultGeometry=80x24
+MiscInheritGeometry=FALSE
+MiscMenubarDefault=FALSE
+MiscMouseAutohide=FALSE
+MiscMouseWheelZoom=TRUE
+MiscToolbarDefault=FALSE
+MiscConfirmClose=FALSE
+MiscCycleTabs=TRUE
+MiscTabCloseButtons=TRUE
+MiscTabCloseMiddleClick=TRUE
+MiscTabPosition=GTK_POS_TOP
+MiscHighlightUrls=TRUE
+MiscMiddleClickOpensUri=FALSE
+MiscCopyOnSelect=FALSE
+MiscShowRelaunchDialog=TRUE
+MiscRewrapOnResize=TRUE
+MiscUseShiftArrowsToScroll=FALSE
+MiscSlimTabs=FALSE
+MiscNewTabAdjacent=FALSE
+ColorForeground=#d3d3d7d7cfcf
+ColorCursorUseDefault=FALSE
+ColorCursorForeground=#efef29292929
+ColorCursor=#fcfce9e94f4f
+ScrollingOnOutput=FALSE
+ScrollingBar=TERMINAL_SCROLLBAR_NONE
+BackgroundMode=TERMINAL_BACKGROUND_TRANSPARENT
+BackgroundImageShading=0.800000
+BackgroundDarkness=0.700000
+CustomCommand=/usr/bin/zsh
+

@@ -29,11 +29,8 @@
 !.vim/**
 !.vimrc
 .vim/plugged/*
-!.oh-my-zsh/
 !.zshrc
 .vim/plugged/*
-!.oh-my-zsh/
-!.oh-my-zsh/*
 !.zshrc
 !.bashrc
 !.Xdefaults

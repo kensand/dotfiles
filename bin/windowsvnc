@@ -1,0 +1,3 @@
+#!/bin/bash
+vncviewer localhost:5900 -geometry 1280x720 -AutoSelect=0 -QualityLevel=0
+

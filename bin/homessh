@@ -1,0 +1,2 @@
+#!/bin/bash
+ssh kenny@home.kensanders.net -p 9022 -L 5900:localhost:5900
