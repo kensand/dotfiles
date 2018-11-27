@@ -1,0 +1,17 @@
+{
+    "firefox": "firefox",
+    "qemu-system-x86_64": "windows",
+    "chromium-browser": "chrome",
+    "chrome": "chrome",
+    "google-chrome": "chrome",
+    "thunderbird": "envelope",
+    "jetbrains-idea-ce": "edit",
+    "nautilus": "folder-open",
+    "thunar": "folder-open",
+    "urxvt": "terminal",
+    "cmus": "music",
+    "vlc": "play",
+    "discord": "discord",
+    "texmaker": "tag"
+}
+

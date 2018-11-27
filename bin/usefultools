@@ -3,7 +3,9 @@ otf-fira-code \
 ttf-fira-code \
 gtop \
 neovim \
-xfce4-terminal \
+urxvt \
 compton \
-
+xorg-xrdb\
 rxvt-unicode-pixbuf \
+
+yay -Syu ttf-font-awesome-4

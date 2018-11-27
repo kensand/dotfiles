@@ -1,2 +1,2 @@
 #!/bin/bash
-urxvt -e "nvim $@"
+t -e "nvim $@"

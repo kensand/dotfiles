@@ -15,29 +15,23 @@
 ;   The README contains alot of information
 ;
 ;==========================================================
+
 [colors]
-background = ${xrdb:color0:#aa000000}
-background-alt=${xrdb:color8:#da000000}
-foreground = ${xrdb:color1:#dfdfdf}
-foreground-alt = ${xrdb:color9:#555}
-primary = ${xrdb:color3:#20aaaa}
-secondary = ${xrdb:color4:#aa2020}
-alert = ${xrdb:color6:#882288}
-
-;[colors]
 ;background = ${xrdb:color0:#222}
-;background = #aa000000
-;background-alt = #da000000
+background = #aa000000
+background-alt = #da000000
 ;foreground = ${xrdb:color7:#222}
-;foreground = #dfdfdf
-;foreground-alt = #555
-;primary = #20aaaa
-;secondary = #aa2020
-;alert = #882288
+>>>>>>> parent of 51c27a7... switched to just earthporn
+foreground = #dfdfdf
+foreground-alt = #555
+primary = #20aaaa
+secondary = #aa2020
+alert = #882288
 
-
-[bar/bar1]
-;monitor = ${env:MONITOR:HDMI-1}
+<<<<<<< HEAD
+=======
+[bar/bar3]
+monitor = ${env:MONITOR:DVI-D-1}
 width = 100%
 height = 27
 ;offset-x = 1%
@@ -61,16 +55,128 @@ padding-right = 0
 module-margin-left = 1
 module-margin-right = 2
 
-font-0 = fixed:pixelsize=10;0
-font-1 = unifont:fontformat=truetype:size=10:weight=bold:antialias=false;0
-font-2 = "FontAwesome:pixelsize=10;3"
+font-0 = fixed:pixelsize=10;1
+font-1 = unifont:fontformat=truetype:size=8:antialias=false;0
+font-2 = siji:pixelsize=10;1
 
-modules-left = powermenu bspwm i3
+modules-left = bspwm i3
 modules-center = xwindow
-modules-right = filesystem xbacklight pulseaudio xkeyboard memory cpu wlan battery date
+modules-right = filesystem xbacklight pulseaudio xkeyboard memory cpu eth temperature date powermenu
 
-tray-position = left
-tray-detatched = false
+tray-position = right
+tray-padding = 2
+;tray-transparent = true
+;tray-background = #0063ff
+
+;wm-restack = bspwm
+;wm-restack = i3
+
+;override-redirect = true
+
+;scroll-up = bspwm-desknext
+;scroll-down = bspwm-deskprev
+
+scroll-up = i3wm-wsnext
+scroll-down = i3wm-wsprev
+
+cursor-click = pointer
+cursor-scroll = ns-resize
+
+
+
+[bar/bar2]
+monitor = ${env:MONITOR:DP-2}
+width = 100%
+height = 27
+;offset-x = 1%
+;offset-y = 1%
+radius = 0
+fixed-center = false
+bottom = true
+
+background = ${colors.background}
+foreground = ${colors.foreground}
+
+line-size = 3
+line-color = #f00
+
+border-size = 0
+border-color = #00000000
+
+padding-left = 0
+padding-right = 0
+
+module-margin-left = 1
+module-margin-right = 2
+
+font-0 = fixed:pixelsize=10;1
+font-1 = unifont:fontformat=truetype:size=8:antialias=false;0
+font-2 = siji:pixelsize=10;1
+
+modules-left = bspwm i3
+modules-center = xwindow
+modules-right = filesystem xbacklight pulseaudio xkeyboard memory cpu eth temperature date powermenu
+
+tray-position = right
+tray-padding = 2
+;tray-transparent = true
+;tray-background = #0063ff
+
+;wm-restack = bspwm
+;wm-restack = i3
+
+;override-redirect = true
+
+;scroll-up = bspwm-desknext
+;scroll-down = bspwm-deskprev
+
+scroll-up = i3wm-wsnext
+scroll-down = i3wm-wsprev
+
+cursor-click = pointer
+cursor-scroll = ns-resize
+
+
+>>>>>>> master
+
+[bar/bar1]
+monitor = ${env:MONITOR:HDMI-1}
+width = 100%
+height = 27
+;offset-x = 1%
+;offset-y = 1%
+radius = 0
+fixed-center = false
+bottom = true
+
+background = ${colors.background}
+foreground = ${colors.foreground}
+
+line-size = 3
+line-color = #f00
+
+border-size = 0
+border-color = #00000000
+
+padding-left = 0
+padding-right = 0
+
+module-margin-left = 1
+module-margin-right = 2
+
+font-0 = fixed:pixelsize=10;1
+font-1 = unifont:fontformat=truetype:size=8:antialias=false;0
+font-2 = siji:pixelsize=10;1
+
+modules-left = bspwm i3
+modules-center = xwindow
+<<<<<<< HEAD
+modules-right = filesystem xbacklight pulseaudio xkeyboard memory cpu wlan battery date powermenu
+=======
+modules-right = filesystem xbacklight pulseaudio xkeyboard memory cpu eth temperature date powermenu
+>>>>>>> master
+
+tray-position = right
 tray-padding = 2
 ;tray-transparent = true
 ;tray-background = #0063ff
@@ -91,7 +197,7 @@ cursor-scroll = ns-resize
 
 [module/xwindow]
 type = internal/xwindow
-label = %title:0:40:...%
+label = %title:0:120:...%
 
 [module/xkeyboard]
 type = internal/xkeyboard
@@ -123,10 +229,9 @@ label-unmounted-foreground = ${colors.foreground-alt}
 type = internal/bspwm
 
 label-focused = %index%
-label-focused-background = ${colors.background}
+label-focused-background = ${colors.background-alt}
 label-focused-underline= ${colors.primary}
 label-focused-padding = 2
-label-indicator-underline = ${colors.secondary}
 
 label-occupied = %index%
 label-occupied-padding = 2
@@ -152,8 +257,8 @@ wrapping-scroll = true
 pin-workspaces = true
 
 label-mode-padding = 2
-label-mode-foreground = ${colors.foreground}
-label-mode-background = ${colors.background}
+label-mode-foreground = #000
+label-mode-background = ${colors.primary}
 
 ; focused = Active workspace on focused monitor
 label-focused = %name%
@@ -184,7 +289,6 @@ label-urgent-padding = ${module/bspwm.label-urgent-padding}
 type = internal/mpd
 format-online = <label-song>  <icon-prev> <icon-stop> <toggle> <icon-next>
 
-label-indicator-underline = ${colors.secondary}
 icon-prev = 
 icon-stop = 
 icon-play = 
@@ -197,7 +301,6 @@ label-song-ellipsis = true
 [module/xbacklight]
 type = internal/xbacklight
 
-label-indicator-underline = ${colors.secondary}
 format = <label> <bar>
 label = BL
 
@@ -222,7 +325,7 @@ type = internal/cpu
 interval = 2
 format-prefix = " "
 format-prefix-foreground = ${colors.foreground-alt}
-format-underline = ${colors.secondary}
+format-underline = #f90000
 label = CPU: %percentage:3%%
 
 [module/memory]
@@ -230,7 +333,7 @@ type = internal/memory
 interval = 2
 format-prefix = " "
 format-prefix-foreground = ${colors.foreground-alt}
-format-underline = ${colors.secondary}
+format-underline = #4bffdc
 label = RAM: %percentage_used%%
 
 [module/wlan]
@@ -239,7 +342,7 @@ interface = wlan0
 interval = 3.0
 
 format-connected = <ramp-signal> <label-connected>
-format-connected-underline = ${colors.secondary}
+format-connected-underline = #9f78e1
 label-connected = %essid%
 
 format-disconnected =
@@ -260,7 +363,7 @@ type = internal/network
 interface = tun0
 interval = 3.0
 
-format-connected-underline = ${colors.secondary}
+format-connected-underline = #55aa55
 format-connected-prefix = " "
 format-connected-prefix-foreground = ${colors.foreground-alt}
 label-connected = %local_ip%
@@ -283,7 +386,7 @@ time-alt = %I:%M:%S %p
 
 format-prefix = 
 format-prefix-foreground = ${colors.foreground-alt}
-format-underline = ${colors.secondary}
+format-underline = #0a6cf5
 
 label = %date% %time%
 
@@ -344,14 +447,14 @@ bar-volume-empty-foreground = ${colors.foreground-alt}
 
 [module/battery]
 type = internal/battery
-battery = BATC
+battery = BAT0
 adapter = ADP1
 full-at = 98
 
-format-charging = <animation-charging> CHR: <label-charging>
+format-charging = <animation-charging> <label-charging>
 format-charging-underline = #ffb52a
 
-format-discharging = <animation-discharging> BAT: <label-discharging>
+format-discharging = <animation-discharging> <label-discharging>
 format-discharging-underline = ${self.format-charging-underline}
 
 format-full-prefix = " "
@@ -375,15 +478,13 @@ animation-discharging-2 = 
 animation-discharging-foreground = ${colors.foreground-alt}
 animation-discharging-framerate = 750
 
-time-format = %H:%M
-
 [module/temperature]
 type = internal/temperature
 thermal-zone = 0
 warn-temperature = 60
 
 format = <ramp> <label>
-format-underline = ${colors.secondary}
+format-underline = #f50a4d
 format-warn = <ramp> <label-warn>
 format-warn-underline = ${self.format-underline}
 

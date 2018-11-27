@@ -1,3 +1,36 @@
+##### THIS FILE IS BEING CURRENTLY MANAGED BY URXVTCONFIG #####
+##### CHANGES DONE TO THIS FILE MANUALLY MAY AFFECT THE FUNCTIONALITY ######
+##### PROCEED WITH CAUTION! #####
+
+! special colors
+*.foreground:  Foreground
+*.background:  Background
+*.cursorColor:  Cursor Color
+! black
+*.color0:      Black #1
+*.color8:      Black #2
+! red
+*.color1:      Red #1
+*.color9:      Red #2
+! green
+*.color2:      Green #1
+*.color10:     Green #2
+! yellow
+*.color3:      Yellow #1
+*.color11:     Yellow #2
+! blue
+*.color4:      Blue #1
+*.color12:     Blue #2
+! magenta
+*.color5:      Magenta #1
+*.color13:     Magenta #2
+! cyan
+*.color6:      Cyan #1
+*.color14:     Cyan #2
+! white
+*.color7:      White #1
+*.color15:     White #2
+
 ! do not scroll with output
 URxvt*scrollTtyOutput: false
 
@@ -16,7 +49,7 @@ URxvt*tintColor: #303030
 URxvt.depth: 24
 
 URxvt.shade: 85
-URxvt.blurRadius: 1x1
+URxvt.blurRadius: 4x4
 
 URxvt.font: xft:Fira Code:pixelsize=13
 URxvt.letterSpace: 0

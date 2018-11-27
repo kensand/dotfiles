@@ -12,6 +12,9 @@
 !.config/nvim
 !.config/polybar
 !.config/oh-my-zsh
+!.config/i3-workspace-names-daemon
+!.config/ranger
+!.config/ranger/**
 !.config/polybar/**
 !.config/i3/**
 !.config/i3status/**
