@@ -17,6 +17,9 @@
 !.config/qutebrowser
 !.config/qutebrowser/**
 !.config/ranger/**
+!.config/oh-my-zsh
+!.config/ranger
+!.config/ranger/**
 !.config/polybar/**
 !.config/i3/**
 !.config/i3status/**

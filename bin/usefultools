@@ -5,7 +5,6 @@ gtop \
 neovim \
 urxvt \
 compton \
-xorg-xrdb\
-rxvt-unicode-pixbuf \
+
 
 yay -Syu ttf-font-awesome-4

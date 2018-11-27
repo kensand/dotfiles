@@ -43,4 +43,3 @@ if &term =~ '^screen'
     execute "set <xLeft>=\e[1;*D"
 endif
 set whichwrap+=<,>,h,l,[,]
-set softtabstop=0 noexpandtab
