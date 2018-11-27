@@ -122,7 +122,7 @@ set $ws9 "9"
 set $ws10 "10"
 
 
-exec_always --no-startup-id exec python $HOME/git/i3-workspace-names-daemon/i3_workspace_names_daemon.py -d "|"
+exec_always --no-startup-id exec python $HOME/.config/i3-workspace-names-daemon/i3_workspace_names_daemon.py -d "|"
 # switch to workspace
 bindsym $mod+1 workspace number $ws1
 bindsym $mod+2 workspace number $ws2
