@@ -100,7 +100,9 @@ bindsym $mod+e layout toggle split
 bindsym $mod+Shift+space floating toggle
 
 # change focus between tiling / floating windows
-bindsym $mod+space focus mode_toggle
+bindsym $mod+Control+space focus mode_toggle
+
+bindsym $mod+space exec $HOME/.config/i3-easyfocus/i3-easyfocus -a
 
 # focus the parent container
 bindsym $mod+a focus parent

@@ -7,4 +7,4 @@ urxvt \
 compton \
 
 
-yay -Syu ttf-font-awesome-4
+yay -Syu ttf-font-awesome-4 i3ipc-glib-git

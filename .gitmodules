@@ -1,6 +1,6 @@
 [submodule ".config/Daily-Reddit-Wallpaper"]
 	path = .config/Daily-Reddit-Wallpaper
-	url = https://gitlab.com/kensand/Daily-Reddit-Wallpaper
+	url = https://gitlab.com/kensand/Daily-Reddit-Wallpaper.git
 [submodule ".config/oh-my-zsh"]
 	path = .config/oh-my-zsh
 	url = https://github.com/robbyrussell/oh-my-zsh.git
@@ -10,6 +10,6 @@
 [submodule ".config/tmux-sidebar"]
 	path = .config/tmux-sidebar
 	url = https://github.com/tmux-plugins/tmux-sidebar.git
-[submodule ".config/i3-workspace-names-daemon"]
-	path = .config/i3-workspace-names-daemon
-	url = https://github.com/cboddy/i3-workspace-names-daemon.git
+[submodule ".config/i3-easyfocus"]
+	path = .config/i3-easyfocus
+	url = https://github.com/kensand/i3-easyfocus.git

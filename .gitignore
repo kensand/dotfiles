@@ -19,6 +19,7 @@
 !.config/ranger/**
 !.config/oh-my-zsh
 !.config/ranger
+!.config/i3-easyfocus
 !.config/ranger/**
 !.config/polybar/**
 !.config/i3/**
