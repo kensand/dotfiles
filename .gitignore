@@ -14,6 +14,8 @@
 !.config/oh-my-zsh
 !.config/i3-workspace-names-daemon
 !.config/ranger
+!.config/qutebrowser
+!.config/qutebrowser/**
 !.config/ranger/**
 !.config/polybar/**
 !.config/i3/**
