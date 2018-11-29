@@ -8,9 +8,7 @@ export ZSH="/home/kenny/.config/oh-my-zsh"
 # it'll load a random theme each time that oh-my-zsh is loaded.
 # See https://github.com/robbyrussell/oh-my-zsh/wiki/Themes
 ZSH_THEME="gallois"
-#ZSH_TMUX_AUTOSTART="true"
-#ZSH_TMUX_AUTOSTART_ONCE="false"
-#ZSH_TMUX_AUTOCONNECT="false"
+
 # Set list of themes to load
 # Setting this variable when ZSH_THEME=random
 # cause zsh load theme from this variable instead of
