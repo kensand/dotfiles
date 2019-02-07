@@ -1,11 +1,4 @@
 let g:netrw_dirhistmax  =10
-let g:netrw_dirhist_cnt =9
-let g:netrw_dirhist_1='/home/kenny/git/Fall2018'
-let g:netrw_dirhist_2='/home/kenny/git/Fall2018/db1'
-let g:netrw_dirhist_3='/home/kenny/GLGI/GLGI_64/deps'
-let g:netrw_dirhist_4='/home/kenny/GLGI/GLGI_64/deps/glfw'
-let g:netrw_dirhist_5='/home/kenny/GLGI/GLGI_64/deps'
-let g:netrw_dirhist_6='/home/kenny/GLGI/GLGI_64/deps/glew'
-let g:netrw_dirhist_7='/home/kenny/git/Redid'
-let g:netrw_dirhist_8='/home/kenny/dot2/dotfiles/.git/objects'
-let g:netrw_dirhist_9='/home/kenny/git/dotfiles/.config/polybar'
+let g:netrw_dirhist_cnt =2
+let g:netrw_dirhist_1='/home/kenny/git/dotfiles/.config/i3-easyfocus'
+let g:netrw_dirhist_2='/home/kenny/Portfolio/GLGI/windows/GLGI/GLGI_64'
