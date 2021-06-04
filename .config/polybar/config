@@ -36,7 +36,7 @@ alert = ${xrdb:color6:#882288}
 ;alert = #882288
 
 [bar/bar3]
-monitor = ${env:MONITOR:DP-3}
+monitor = ${env:MONITOR:eDP1}
 width = 100%
 height = 27
 ;offset-x = 1%
@@ -62,7 +62,7 @@ module-margin-right = 2
 
 font-0 = fixed:pixelsize=10;0
 font-1 = unifont:fontformat=truetype:size=10:weight=bold:antialias=false;0
-font-2 = "FontAwesome:pixelsize=10;3"
+font-2 = "Font Awesome 5 Free:pixelsize=10;3"
 
 modules-left = bspwm i3
 modules-center = xwindow
@@ -116,7 +116,7 @@ module-margin-right = 2
 
 font-0 = fixed:pixelsize=10;0
 font-1 = unifont:fontformat=truetype:size=10:weight=bold:antialias=false;0
-font-2 = "FontAwesome:pixelsize=10;3"
+font-2 = "Font Awesome 5 Free:pixelsize=10;3"
 
 modules-left = bspwm i3
 modules-center = xwindow
@@ -171,7 +171,7 @@ module-margin-right = 2
 
 font-0 = fixed:pixelsize=10;0
 font-1 = unifont:fontformat=truetype:size=10:weight=bold:antialias=false;0
-font-2 = "FontAwesome:pixelsize=10;3"
+font-2 = "Font Awesome 5 Free:pixelsize=10;3"
 
 modules-left = bspwm i3
 modules-center = xwindow

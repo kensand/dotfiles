@@ -203,7 +203,7 @@ bindsym $mod+r mode "resize"
 #}
 #exec_always --no-startup-id $HOME/.screenlayout/3monitors.sh &
 #exec_always --no-startup-id killall wicd-client && sleep 1 && /usr/bin/wicd-client -t &
-exec_always --no-startup-id $HOME/.config/polybar/launch.sh
+#exec_always --no-startup-id $HOME/.config/polybar/launch.sh
 
 #exec_always $HOME/.config/polybar/launch.sh
 #exec_always --no-startup-id killall wicd-client && sleep 2 && /usr/bin/wicd-client -t &
@@ -269,7 +269,7 @@ exec_always --no-startup-id $HOME/bin/ldwall
 exec_always --no-startup-id $HOME/bin/chwall
 exec_always --no-startup-id xfce4-power-manager
 exec_always --no-startup-id synclient TapButton3="2" TapButton1="1" TapButton2="3"
-exec_always --no-startup-id $HOME/.config/polybar/launch.sh
+exec_always --no-startup-id sleep 2 && $HOME/.config/polybar/launch.sh
 
 #exec_always --no-startup-id killall -q udiskie; while pgrep -u $UID -x udiskie >/dev/null; do sleep 1; done; udiskie --tray &
 exec --no-startup-id i3-msg 'workspace tbd; exec thunderbird;'

@@ -47,4 +47,5 @@
 !bin/
 !bin/*
 !bin/*/*
+bin/jetbrains-toolbox
 !.zsh_aliases
