@@ -9,6 +9,7 @@
     "nautilus": "folder-open",
     "thunar": "folder-open",
     "urxvt": "terminal",
+    "gnome-terminal": "terminal",
     "cmus": "music",
     "vlc": "play",
     "discord": "comment",

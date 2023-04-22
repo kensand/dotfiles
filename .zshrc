@@ -62,7 +62,7 @@ COMPLETION_WAITING_DOTS="true"
 # Example format: plugins=(rails git textmate ruby lighthouse)
 # Add wisely, as too many plugins slow down shell startup.
 plugins=(
-  git
+  #git
   web-search
   tmux
   history-substring-search
@@ -102,3 +102,15 @@ source $HOME/.zsh_aliases
 
 bindkey "${terminfo[khome]}" beginning-of-line
 bindkey "${terminfo[kend]}" end-of-line
+export TERM=xterm
+cat /home/kenny/.cache/wal/sequences && clear
+cat /home/kenny/.cache/wal/sequences 
+source /usr/share/nvm/init-nvm.sh
+
+
+export ANDROID_HOME=$HOME/.android/Sdk
+export PATH=$PATH:$ANDROID_HOME/emulator
+export PATH=$PATH:$ANDROID_HOME/tools
+export PATH=$PATH:$ANDROID_HOME/tools/bin
+export PATH=$PATH:$ANDROID_HOME/platform-tools
+export PATH=$PATH:$HOME/.local/share/JetBrains/Toolbox/scripts

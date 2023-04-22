@@ -1,5 +1,6 @@
 [user]
-	email = kennysandersschool@gmail.com
-	name = Kenneth Sanders
+	email = git@kensand.net
+	name = kensand
 [core]
 	editor = nvim
+	autocrlf = input

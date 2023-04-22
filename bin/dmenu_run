@@ -13,16 +13,16 @@ cmd=`(
   		  aliases=( ~/.bash_aliases )
 		fi
 
-		if [ ~/.bash_functions ]; then
-          functions=( ~/.bash_functions )
-        fi
+#		if [ ~/.bash_functions ]; then
+#          functions=( ~/.bash_functions )
+#        fi
 
  if stest -dqr -n "$cache" $PATH || stest -fqr -n "$cache" "$aliases" || stest -fqr -n "$cache" "$functions"; then
           (
             stest -flx $PATH
             source $aliases
 	    	alias | awk -F '[ =]' '{print $2}'
-	    	source $functions
+#	    	source $functions
 	    	compgen -A function
           ) | sort -u | tee "$cache" | PATH="$HOME/bin:$HOME/.local/bin:$PATH" dmenu "$@"
 	else
@@ -32,6 +32,6 @@ cmd=`(
 # Perform alias expansion on $cmd
 if [ -f ~/.zsh_aliases ]; then
   echo -e "source ~/.zsh_aliases \n $cmd" | bash -O expand_aliases &
-elif [ -f ~/.bash_aliases ] && [ -f ~/.bash_functions ]; then
-  echo -e "source ~/.bash_aliases \n source ~/.bash_functions \n $cmd" | bash -O expand_aliases &
+#elif [ -f ~/.bash_aliases ] && [ -f ~/.bash_functions ]; then
+#  echo -e "source ~/.bash_aliases \n source ~/.bash_functions \n $cmd" | bash -O expand_aliases &
 fi

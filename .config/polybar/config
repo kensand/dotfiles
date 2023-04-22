@@ -35,6 +35,60 @@ alert = ${xrdb:color6:#882288}
 ;secondary = #aa2020
 ;alert = #882288
 
+[bar/bar5]
+monitor = ${env:MONITOR:DP-3}
+width = 100%
+height = 27
+;offset-x = 1%
+;offset-y = 1%
+radius = 0
+fixed-center = false
+bottom = true
+
+background = ${colors.background}
+foreground = ${colors.foreground}
+
+line-size = 3
+line-color = #f00
+
+border-size = 0
+border-color = #00000000
+
+padding-left = 0
+padding-right = 0
+
+module-margin-left = 1
+module-margin-right = 2
+
+font-0 = fixed:pixelsize=10;0
+font-1 = unifont:fontformat=truetype:size=10:weight=bold:antialias=false;0
+font-2 = "FontAwesome:pixelsize=10;3"
+
+modules-left = bspwm i3
+modules-center = xwindow
+modules-right =  xbacklight pulseaudio filesystem memory cpu eth temperature battery date powermenu
+
+tray-position = right
+tray-padding = 2
+;tray-transparent = true
+;tray-background = #0063ff
+
+;wm-restack = bspwm
+;wm-restack = i3
+
+;override-redirect = true
+
+;scroll-up = bspwm-desknext
+;scroll-down = bspwm-deskprev
+
+scroll-up = i3wm-wsnext
+scroll-down = i3wm-wsprev
+
+cursor-click = pointer
+cursor-scroll = ns-resize
+
+
+
 [bar/bar3]
 monitor = ${env:MONITOR:eDP1}
 width = 100%
@@ -62,11 +116,11 @@ module-margin-right = 2
 
 font-0 = fixed:pixelsize=10;0
 font-1 = unifont:fontformat=truetype:size=10:weight=bold:antialias=false;0
-font-2 = "Font Awesome 5 Free:pixelsize=10;3"
+font-2 = "FontAwesome:pixelsize=10;3"
 
 modules-left = bspwm i3
 modules-center = xwindow
-modules-right = filesystem xbacklight pulseaudio xkeyboard memory cpu eth temperature date powermenu
+modules-right =  xbacklight pulseaudio filesystem memory cpu eth temperature battery date powermenu
 
 tray-position = right
 tray-padding = 2
@@ -88,9 +142,8 @@ cursor-click = pointer
 cursor-scroll = ns-resize
 
 
-
 [bar/bar2]
-monitor = ${env:MONITOR:DP-5}
+monitor = ${env:MONITOR:DP1-1}
 width = 100%
 height = 27
 ;offset-x = 1%
@@ -142,10 +195,61 @@ cursor-click = pointer
 cursor-scroll = ns-resize
 
 
+[bar/bar4]
+monitor = ${env:MONITOR:DP1-2}
+width = 100%
+height = 27
+;offset-x = 1%
+;offset-y = 1%
+radius = 0
+fixed-center = false
+bottom = true
+
+background = ${colors.background}
+foreground = ${colors.foreground}
+
+line-size = 3
+line-color = #f00
+
+border-size = 0
+border-color = #00000000
+
+padding-left = 0
+padding-right = 0
+
+module-margin-left = 1
+module-margin-right = 2
+
+font-0 = fixed:pixelsize=10;0
+font-1 = unifont:fontformat=truetype:size=10:weight=bold:antialias=false;0
+font-2 = "Font Awesome 5 Free:pixelsize=10;3"
+
+modules-left = bspwm i3
+modules-center = xwindow
+modules-right = filesystem xbacklight pulseaudio xkeyboard memory cpu eth temperature date powermenu
+
+tray-position = right
+tray-padding = 2
+;tray-transparent = true
+;tray-background = #0063ff
+
+;wm-restack = bspwm
+;wm-restack = i3
+
+;override-redirect = true
+
+;scroll-up = bspwm-desknext
+;scroll-down = bspwm-deskprev
+
+scroll-up = i3wm-wsnext
+scroll-down = i3wm-wsprev
+
+cursor-click = pointer
+cursor-scroll = ns-resize
+
 
 [bar/bar1]
-;monitor = ${env:MONITOR:HDMI-1}
-monitor = ${env:MONITOR:DVI-D-0}
+monitor = ${env:MONITOR:DP1-3}
 width = 100%
 height = 27
 ;offset-x = 1%
@@ -451,14 +555,16 @@ bar-volume-empty-foreground = ${colors.foreground-alt}
 
 [module/battery]
 type = internal/battery
-battery = BATC
-adapter = ADP1
+battery = BAT0
+adapter = AC
 full-at = 98
 
-format-charging = <animation-charging> CHR: <label-charging>
+time-format = %H:%M
+
+format-charging = <animation-charging> <label-charging>
 format-charging-underline = ${colors.secondary}
 
-format-discharging = <animation-discharging> BAT: <label-discharging>
+format-discharging = <animation-discharging> <label-discharging>
 format-discharging-underline = ${self.format-charging-underline}
 
 format-full-prefix = " "
@@ -482,7 +588,24 @@ animation-discharging-2 = 
 animation-discharging-foreground = ${colors.foreground-alt}
 animation-discharging-framerate = 750
 
-time-format = %H:%M
+; Available tokens:
+;   %percentage% (default) - is set to 100 if full-at is reached
+;   %percentage_raw%
+;   %time%
+;   %consumption% (shows current charge rate in watts)
+label-charging = CHR: %percentage%% (%time%)
+
+; Available tokens:
+;   %percentage% (default) - is set to 100 if full-at is reached
+;   %percentage_raw%
+;   %time%
+;   %consumption% (shows current discharge rate in watts)
+label-discharging = BAT: %percentage%% (%time%)
+
+; Available tokens:
+;   %percentage% (default) - is set to 100 if full-at is reached
+;   %percentage_raw%
+label-full = Fully charged
 
 [module/temperature]
 type = internal/temperature
