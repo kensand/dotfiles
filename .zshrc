@@ -64,9 +64,9 @@ COMPLETION_WAITING_DOTS="true"
 plugins=(
   #git
   web-search
-  tmux
+  #tmux
   history-substring-search
-  zsh-syntax-highlighting
+  #zsh-syntax-highlighting
 )
 
 source $ZSH/oh-my-zsh.sh
@@ -97,14 +97,14 @@ source $ZSH/oh-my-zsh.sh
 # For a full list of active aliases, run `alias`.
 #
 # Example aliases
-EDITOR="nvim"
+EDITOR="vim"
 source $HOME/.zsh_aliases
 
 bindkey "${terminfo[khome]}" beginning-of-line
 bindkey "${terminfo[kend]}" end-of-line
 export TERM=xterm
-cat /home/kenny/.cache/wal/sequences && clear
-cat /home/kenny/.cache/wal/sequences 
+#cat /home/kenny/.cache/wal/sequences && clear
+#cat /home/kenny/.cache/wal/sequences 
 source /usr/share/nvm/init-nvm.sh
 
 

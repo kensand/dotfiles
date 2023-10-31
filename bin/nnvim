@@ -1,2 +1,0 @@
-#!/bin/bash
-t -e "nvim $@"
