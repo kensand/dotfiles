@@ -6,6 +6,7 @@
 !.tmux.conf
 !.config/
 !.config/i3
+!.config/sway
 !.config/i3status
 !.config/Daily-Reddit-Wallpaper
 !.config/xfce4
@@ -23,6 +24,7 @@
 !.config/ranger/**
 !.config/polybar/**
 !.config/i3/**
+!.config/sway/**
 !.config/i3status/**
 !.config/Daily-Reddit-Wallpaper/**
 !.config/xfce4/**
