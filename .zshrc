@@ -108,9 +108,10 @@ export TERM=xterm
 source /usr/share/nvm/init-nvm.sh
 
 
-export ANDROID_HOME=$HOME/.android/Sdk
+export ANDROID_HOME=/opt/android-sdk
 export PATH=$PATH:$ANDROID_HOME/emulator
 export PATH=$PATH:$ANDROID_HOME/tools
 export PATH=$PATH:$ANDROID_HOME/tools/bin
 export PATH=$PATH:$ANDROID_HOME/platform-tools
+export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin
 export PATH=$PATH:$HOME/.local/share/JetBrains/Toolbox/scripts

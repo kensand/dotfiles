@@ -11,6 +11,9 @@
 !.config/Daily-Reddit-Wallpaper
 !.config/xfce4
 !.config/nvim
+!.config/waybar
+!.config/way-displays
+!.config/fuzzel
 !.config/polybar
 !.config/oh-my-zsh
 !.config/i3-workspace-names-daemon
@@ -18,6 +21,8 @@
 !.config/qutebrowser
 !.config/qutebrowser/**
 !.config/ranger/**
+!.config/waybar/**
+!.config/way-displays/**
 !.config/oh-my-zsh
 !.config/ranger
 !.config/i3-easyfocus
@@ -25,6 +30,7 @@
 !.config/polybar/**
 !.config/i3/**
 !.config/sway/**
+!.config/fuzzel/**
 !.config/i3status/**
 !.config/Daily-Reddit-Wallpaper/**
 !.config/xfce4/**
