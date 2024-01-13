@@ -30,14 +30,14 @@ set $d color2 #303030
 #output eDP-1 modeline 287.00  2256 2424 2664 3072  1504 1507 1517 1559 -hsync +vsync
 #output eDP-1 scale 1.0 
 
-exec way-displays
+exec way-displays > /tmp/way-displays.${XDG_VTNR}.${USER}.log 2>&1
 
-exec --no-startup-id swayidle timeout 900 "swaylock -c 000000"\
-	timeout 900 'swaymsg "output * power off"'\
-	resume 'swaymsg "output * power on"'\
-	before-sleep 'playerctl pause'\
-	before-sleep 'swaylock -c 000000'\
-	idlehint 900 
+#exec --no-startup-id swayidle timeout 900 "swaylock -c 000000"\
+#	timeout 900 'swaymsg "output * power off"'\
+#	resume 'swaymsg "output * power on"'\
+#	before-sleep 'playerctl pause'\
+#	before-sleep 'swaylock -c 000000'\
+#	idlehint 900 
 
 bindswitch --locked lid:on exec swaymsg output eDP-1 disable
 bindswitch --locked lid:off exec swaymsg output eDP-1 enable
@@ -193,10 +193,8 @@ bindsym $mod+Shift+9 move container to workspace number $ws9
 bindsym $mod+Shift+0 move container to workspace number $ws10
 
 # reload the configuration file
-bindsym $mod+Shift+c reload
-# restart i3 inplace (preserves your layout/session, can be used to upgrade i3)
-bindsym $mod+Shift+r restart
-# resize window (you can also use the mouse for that)
+bindsym $mod+Shift+r reload
+
 mode "resize" {
         # These bindings trigger as soon as you enter the resize mode
 

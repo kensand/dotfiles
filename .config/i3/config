@@ -42,7 +42,7 @@ floating_modifier $mod
 
 # start a terminal
 #bindsym $mod+Return exec xfce4-terminal
-bindsym $mod+Return exec i3-sensible-terminal
+bindsym $mod+Return exec konsole
 # kill focused window
 bindsym $mod+Shift+q kill
 
@@ -236,7 +236,7 @@ bindsym $mod+F5 exec --no-startup-id $HOME/bin/brightness.sh - DSI-1 .01 # decre
 #bindsym $mod+d exec dmenu_run -y 32 -h 50 -w 500 -fn 20 -sf cyan -sb black -nf '#dd00dd' -nb '#404040'
 #bindsym $mod+d exec $HOME/bin/dmenuwrap 
 #-z makes it fuzy
-bindsym $mod+d exec "$HOME/bin/dmenu_run -h 50 -fn 20 -sf '$d' -sb '$a' -nf '$fg' -nb '$bg'" 
+bindsym $mod+d exec rofi -show drun
 
 
 # class                 border  backgr. text    indicator child_border
@@ -288,7 +288,7 @@ exec --no-startup-id i3-msg 'workspace element; exec /usr/bin/element-desktop'
 
 for_window [class="^.*"] border pixel 1
 for_window [title="QEMU"] move to workspace windows
-#exec "xautolock -detectsleep -time 3 -locker \"i3lock -c 000000\" -secure"
+exec --no-startup-id xautolock -time 15 -locker 'systemctl suspend' -notify 600 -notifier 'i3lock | xset dpms force off' &
 bindsym $mod+Control+l exec "i3lock -c 000000"
 bindsym $mod+C exec i3-input -F 'workspace %s' -P 'go to workspace: '
 bindsym $mod+X exec i3-input -F 'move container to workspace %s' -P 'move to workspace: '
@@ -305,6 +305,3 @@ bindsym $mod+Control+Down exec i3-msg "move container to output down"
 bindsym $mod+Tab workspace next_on_output
 bindsym $mod+Shift+Tab workspace prev_on_output
 
-bindsym $mod+t exec urxvt -e ranger
-bindsym $mod+m exec $HOME/bin/gtop
-bindsym $mod+b exec firefox

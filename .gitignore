@@ -15,6 +15,7 @@
 !.config/way-displays
 !.config/fuzzel
 !.config/polybar
+!.config/picom
 !.config/oh-my-zsh
 !.config/i3-workspace-names-daemon
 !.config/ranger
@@ -28,6 +29,7 @@
 !.config/i3-easyfocus
 !.config/ranger/**
 !.config/polybar/**
+!.config/picom/**
 !.config/i3/**
 !.config/sway/**
 !.config/fuzzel/**
