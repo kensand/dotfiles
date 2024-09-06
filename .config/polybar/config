@@ -36,7 +36,7 @@ alert = ${xrdb:color6:#882288}
 ;alert = #882288
 
 [bar/bar5]
-monitor = ${env:MONITOR:DP-3}
+monitor = ${env:MONITOR:DP-10}
 width = 100%
 height = 27
 ;offset-x = 1%
@@ -62,11 +62,11 @@ module-margin-right = 2
 
 font-0 = fixed:pixelsize=10;0
 font-1 = unifont:fontformat=truetype:size=10:weight=bold:antialias=false;0
-font-2 = "FontAwesome:pixelsize=10;3"
+font-2 = "Font Awesome:pixelsize=10;3"
 
-modules-left = bspwm i3
+modules-left = i3
 modules-center = xwindow
-modules-right =  xbacklight pulseaudio filesystem memory cpu eth temperature battery date powermenu
+modules-right = xbacklight pulseaudio filesystem xkeyboard memory cpu eth temperature battery date powermenu
 
 tray-position = right
 tray-padding = 2
@@ -86,7 +86,7 @@ scroll-down = i3wm-wsprev
 
 cursor-click = pointer
 cursor-scroll = ns-resize
-
+enable-ipc = true
 
 
 [bar/bar3]
@@ -116,11 +116,11 @@ module-margin-right = 2
 
 font-0 = fixed:pixelsize=10;0
 font-1 = unifont:fontformat=truetype:size=10:weight=bold:antialias=false;0
-font-2 = "FontAwesome:pixelsize=10;3"
+font-2 = "Font Awesome:pixelsize=10;3"
 
-modules-left = bspwm i3
+modules-left = i3
 modules-center = xwindow
-modules-right =  xbacklight pulseaudio filesystem memory cpu eth temperature battery date powermenu
+modules-right = xbacklight pulseaudio filesystem xkeyboard memory cpu eth temperature battery date powermenu
 
 tray-position = right
 tray-padding = 2
@@ -141,9 +141,10 @@ scroll-down = i3wm-wsprev
 cursor-click = pointer
 cursor-scroll = ns-resize
 
+enable-ipc = true
 
 [bar/bar2]
-monitor = ${env:MONITOR:DP1-1}
+monitor = ${env:MONITOR:DP-9}
 width = 100%
 height = 27
 ;offset-x = 1%
@@ -169,11 +170,11 @@ module-margin-right = 2
 
 font-0 = fixed:pixelsize=10;0
 font-1 = unifont:fontformat=truetype:size=10:weight=bold:antialias=false;0
-font-2 = "Font Awesome 5 Free:pixelsize=10;3"
+font-2 = "Font Awesome:pixelsize=10;3"
 
-modules-left = bspwm i3
+modules-left = i3
 modules-center = xwindow
-modules-right = filesystem xbacklight pulseaudio xkeyboard memory cpu eth temperature date powermenu
+modules-right = xbacklight pulseaudio filesystem xkeyboard memory cpu eth temperature battery date powermenu
 
 tray-position = right
 tray-padding = 2
@@ -194,6 +195,7 @@ scroll-down = i3wm-wsprev
 cursor-click = pointer
 cursor-scroll = ns-resize
 
+enable-ipc = true
 
 [bar/bar4]
 monitor = ${env:MONITOR:DP1-2}
@@ -222,11 +224,11 @@ module-margin-right = 2
 
 font-0 = fixed:pixelsize=10;0
 font-1 = unifont:fontformat=truetype:size=10:weight=bold:antialias=false;0
-font-2 = "Font Awesome 5 Free:pixelsize=10;3"
+font-2 = "Font Awesome:pixelsize=10;3"
 
-modules-left = bspwm i3
+modules-left = i3
 modules-center = xwindow
-modules-right = filesystem xbacklight pulseaudio xkeyboard memory cpu eth temperature date powermenu
+modules-right = xbacklight pulseaudio filesystem xkeyboard memory cpu eth temperature battery date powermenu
 
 tray-position = right
 tray-padding = 2
@@ -247,6 +249,7 @@ scroll-down = i3wm-wsprev
 cursor-click = pointer
 cursor-scroll = ns-resize
 
+enable-ipc = true
 
 [bar/bar1]
 monitor = ${env:MONITOR:DP1-3}
@@ -275,11 +278,11 @@ module-margin-right = 2
 
 font-0 = fixed:pixelsize=10;0
 font-1 = unifont:fontformat=truetype:size=10:weight=bold:antialias=false;0
-font-2 = "Font Awesome 5 Free:pixelsize=10;3"
+font-2 = "Font Awesome:pixelsize=10;3"
 
-modules-left = bspwm i3
+modules-left = i3
 modules-center = xwindow
-modules-right = filesystem xbacklight pulseaudio xkeyboard memory cpu eth temperature date powermenu
+modules-right = xbacklight pulseaudio filesystem xkeyboard memory cpu eth temperature battery date powermenu
 
 tray-position = right
 tray-padding = 2
@@ -300,6 +303,7 @@ scroll-down = i3wm-wsprev
 cursor-click = pointer
 cursor-scroll = ns-resize
 
+enable-ipc = true
 [module/xwindow]
 type = internal/xwindow
 label = %title:0:120:...%
@@ -388,7 +392,7 @@ label-urgent-background = ${module/bspwm.label-urgent-background}
 label-urgent-padding = ${module/bspwm.label-urgent-padding}
 
 ; Separator in between workspaces
-; label-separator = |
+;label-separator = |
 
 
 [module/mpd]
@@ -406,22 +410,28 @@ label-song-maxlen = 25
 label-song-ellipsis = true
 
 [module/xbacklight]
-type = internal/xbacklight
+type = internal/backlight
 
-label-indicator-underline = ${colors.secondary}
-format = <label> <bar>
-label = BL
+card = amdgpu_bl1
+enable-scroll = true
+format = <label>
+#use-actual-brightness = false
+; Available tokens:
+;   %percentage% (default)
+label = %percentage%%
 
+; Only applies if <ramp> is used
+ramp-0 = 🌕
+ramp-1 = 🌔
+ramp-2 = 🌓
+ramp-3 = 🌒
+ramp-4 = 🌑
+
+; Only applies if <bar> is used
 bar-width = 10
 bar-indicator = |
-bar-indicator-foreground = #fff
-bar-indicator-font = 2
 bar-fill = ─
-bar-fill-font = 2
-bar-fill-foreground = #9f78e1
 bar-empty = ─
-bar-empty-font = 2
-bar-empty-foreground = ${colors.foreground-alt}
 
 [module/backlight-acpi]
 inherit = module/xbacklight
@@ -555,8 +565,8 @@ bar-volume-empty-foreground = ${colors.foreground-alt}
 
 [module/battery]
 type = internal/battery
-battery = BAT0
-adapter = AC
+battery = BAT1
+adapter = ACAD
 full-at = 98
 
 time-format = %H:%M

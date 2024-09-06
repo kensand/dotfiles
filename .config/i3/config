@@ -40,6 +40,9 @@ font pango:DejaVu Sans Mono 8
 # Use Mouse+$mod to drag floating windows to their wanted position
 floating_modifier $mod
 
+#bindsym Super_L exec polybar-msg cmd show
+#bindcode --release 133 exec polybar-msg cmd hide
+
 # start a terminal
 #bindsym $mod+Return exec xfce4-terminal
 bindsym $mod+Return exec konsole
@@ -207,9 +210,14 @@ bindsym $mod+r mode "resize"
 
 #exec_always --no-startup-id killall wicd-client && sleep 2 && /usr/bin/wicd-client -t &
 
-exec_always --no-startup-id /usr/bin/nm-applet &
-exec_always --no-startup-id onboard &
-exec_always --no-startup-id pkill picom && /usr/bin/picom -b
+#exec_always --no-startup-id /usr/bin/nm-applet &
+
+# Proxy statusnotification to XEmbed since iwgtk does not support it
+# https://github.com/J-Lentz/iwgtk/issues/19
+exec_always --no-startup-id snixembed --fork
+exec_always --no-startup-id iwgtk -i
+#exec_always --no-startup-id onboard &
+exec_always --no-startup-id pkill picom && picom
 smart_gaps on
 
 bindcode $mod+Shift+Control+21 gaps inner all plus 5; gaps outer all plus 5
@@ -225,12 +233,10 @@ exec_always --no-startup-id i3-msg "gaps inner all set 10" && i3-msg "gaps outer
 bindsym XF86AudioRaiseVolume exec --no-startup-id pactl set-sink-volume 0 +3% #increase sound volume
 bindsym XF86AudioLowerVolume exec --no-startup-id pactl set-sink-volume 0 -3% #decrease sound volume
 bindsym XF86AudioMute exec --no-startup-id pactl set-sink-mute 0 toggle # mute sound
-exec_always --no-startup-id pulse-autoconf
-
 
 # Sreen brightness controls
-bindsym $mod+F6 exec --no-startup-id $HOME/bin/brightness.sh + DSI-1 .01 # increase screen brightness
-bindsym $mod+F5 exec --no-startup-id $HOME/bin/brightness.sh - DSI-1 .01 # decrease screen brightness
+bindsym XF86MonBrightnessUp exec --no-startup-id brightnessctl set 5+% # increase screen brightness
+bindsym XF86MonBrightnessDown exec --no-startup-id brightnessctl set 5-% # decrease screen brightness
 
 # start dmenu (a program launcher)
 #bindsym $mod+d exec dmenu_run -y 32 -h 50 -w 500 -fn 20 -sf cyan -sb black -nf '#dd00dd' -nb '#404040'
@@ -288,7 +294,8 @@ exec --no-startup-id i3-msg 'workspace element; exec /usr/bin/element-desktop'
 
 for_window [class="^.*"] border pixel 1
 for_window [title="QEMU"] move to workspace windows
-exec --no-startup-id xautolock -time 15 -locker 'systemctl suspend' -notify 600 -notifier 'i3lock | xset dpms force off' &
+exec --no-startup-id xautolock -time 15 -locker 'systemctl suspend' -notify 1200 -notifier 'i3lock -c 000000 | xset dpms force off' -secure 
+#exec --no-startup-id xset s 60 && xss-lock --transfer-sleep-lock -- i3lock -c 000000 --no-fork
 bindsym $mod+Control+l exec "i3lock -c 000000"
 bindsym $mod+C exec i3-input -F 'workspace %s' -P 'go to workspace: '
 bindsym $mod+X exec i3-input -F 'move container to workspace %s' -P 'move to workspace: '

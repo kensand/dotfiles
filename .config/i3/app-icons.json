@@ -5,14 +5,16 @@
     "chrome": "chrome",
     "google-chrome": "chrome",
     "thunderbird": "envelope",
-    "jetbrains-idea-ce": "edit",
     "nautilus": "folder-open",
     "thunar": "folder-open",
     "urxvt": "terminal",
+    "Konsole": "terminal",
     "gnome-terminal": "terminal",
     "cmus": "music",
     "vlc": "play",
     "discord": "comment",
-    "texmaker": "tag"
+    "texmaker": "tag",
+    "jetbrains-idea": "list",
+    "Element": "comment"
 }
 

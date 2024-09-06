@@ -15,36 +15,33 @@ set $mod Mod4
 bar {
   swaybar_command waybar
   mode hide
+  #mode dock
   position bottom
   hidden_state hide
 }
 
+output DP-10 pos 0 0 res 2560x1440@59.95100Hz
+output DP-10 scale 1 
+output DP-10 adaptive_sync off
+output DP-9 pos 2560 0 res 2560x1440@59.95100Hz 
+output DP-9 scale 1
+output DP-9 adaptive_sync off
+output eDP-1 pos 5120 0 res 2256x1504@59.99900Hz 
+output eDP-1 scale 1
+output eDP-1 adaptive_sync off
 
-set $fg color1 #20aaaa
-set $bg background #063030
-set $a color4 #882288
-set $b color5 #900000
-set $c color6 #af343a
-set $d color2 #303030
+default_border pixel 10
+hide_edge_borders smart
+for_window [class="^.*"] border pixel 1
 
-#output eDP-1 modeline 287.00  2256 2424 2664 3072  1504 1507 1517 1559 -hsync +vsync
-#output eDP-1 scale 1.0 
+smart_gaps on
+gaps inner 10
+gaps outer 10
 
-exec way-displays > /tmp/way-displays.${XDG_VTNR}.${USER}.log 2>&1
 
-#exec --no-startup-id swayidle timeout 900 "swaylock -c 000000"\
-#	timeout 900 'swaymsg "output * power off"'\
-#	resume 'swaymsg "output * power on"'\
-#	before-sleep 'playerctl pause'\
-#	before-sleep 'swaylock -c 000000'\
-#	idlehint 900 
+#bindswitch --locked lid:on exec swaymsg output eDP-1 disable
+#bindswitch --locked lid:off exec swaymsg output eDP-1 enable
 
-bindswitch --locked lid:on exec swaymsg output eDP-1 disable
-bindswitch --locked lid:off exec swaymsg output eDP-1 enable
-
-exec iwgtk -i
-
-exec $HOME/bin/chwall
 # Font for window titles. Will also be used by the bar unless a different font
 # is used in the bar {} block below.
 font "Fira Code" 10
@@ -52,13 +49,6 @@ font "Fira Code" 10
 # This font is widely installed, provides lots of unicode glyphs, right-to-left
 # text rendering and scalability on retina/hidpi displays (thanks to pango).
 font pango:DejaVu Sans Mono 10
-
-bindgesture swipe:4:right workspace prev 
-bindgesture swipe:4:left workspace next
-bindgesture swipe:3:up move up
-bindgesture swipe:3:down move down
-bindgesture swipe:3:left move left
-bindgesture swipe:3:right move right
 
 input * {
 	tap enabled
@@ -73,6 +63,28 @@ input * {
 
 # Use Mouse+$mod to drag floating windows to their wanted position
 floating_modifier $mod
+# focus the child container
+#bindsym $mod+d focus child
+
+# Define names for default workspaces for which we configure key bindings later on.
+# We use variables to avoid repeating the names in multiple places.
+set $ws1 "1"
+set $ws2 "2"
+set $ws3 "3"
+set $ws4 "4"
+set $ws5 "5"
+set $ws6 "6"
+set $ws7 "7"
+set $ws8 "8"
+set $ws9 "9"
+set $ws10 "10"
+
+bindgesture swipe:4:right workspace prev 
+bindgesture swipe:4:left workspace next
+bindgesture swipe:3:up move up
+bindgesture swipe:3:down move down
+bindgesture swipe:3:left move left
+bindgesture swipe:3:right move right
 
 bindsym $mod+Shift+e exec swaynag -t warning -m 'You pressed the exit shortcut. Do you really want to exit sway? This will end your Wayland session.' -B 'Yes, exit sway' 'swaymsg exit'
 
@@ -91,9 +103,11 @@ bindsym $mod+minus scratchpad show
 
 # start a terminal
 #bindsym $mod+Return exec xfce4-terminal
-bindsym $mod+Return exec foot
+bindsym $mod+Return exec konsole
 # kill focused window
 bindsym $mod+Shift+q kill
+# force kill focused window
+bindsym $mod+Shift+Control+q exec wkill
 
 
 #bindsym $mod+j mode "workspaceswitcher"
@@ -150,24 +164,8 @@ bindsym $mod+Control+space focus mode_toggle
 # focus the parent container
 bindsym $mod+a focus parent
 
-# focus the child container
-#bindsym $mod+d focus child
-
-# Define names for default workspaces for which we configure key bindings later on.
-# We use variables to avoid repeating the names in multiple places.
-set $ws1 "1"
-set $ws2 "2"
-set $ws3 "3"
-set $ws4 "4"
-set $ws5 "5"
-set $ws6 "6"
-set $ws7 "7"
-set $ws8 "8"
-set $ws9 "9"
-set $ws10 "10"
 
 
-exec_always --no-startup-id exec blueman-applet
 # switch to workspace
 bindsym $mod+1 workspace number $ws1
 bindsym $mod+2 workspace number $ws2
@@ -221,28 +219,14 @@ mode "resize" {
 
 bindsym $mod+r mode "resize"
 
-exec_always --no-startup-id /usr/bin/nm-applet &
-smart_gaps on
-
 bindcode $mod+Shift+Control+21 gaps inner all plus 5; gaps outer all plus 5
-
 bindcode $mod+Shift+Control+20 gaps inner all minus 5; gaps outer all minus 5
-gaps inner 10
-gaps outer 10
-
 bindsym $mod+d exec fuzzel 
 
 #kill commands with mouse
 bindsym --release button2 kill
 bindsym --whole-window $mod+button2 kill
 
-default_border pixel 10
-hide_edge_borders smart
-
-exec --no-startup-id swaymsg 'workspace 0; exec thunderbird;'
-exec --no-startup-id swaymsg 'workspace 9; exec element-desktop'
-exec --no-startup-id swaymsg 'workspace 1; exec firefox;'
-for_window [class="^.*"] border pixel 1
 bindsym $mod+Control+l exec "swaylock -c 000000"
 bindsym $mod+C exec i3-input -F 'workspace %s' -P 'go to workspace: '
 bindsym $mod+X exec i3-input -F 'move container to workspace %s' -P 'move to workspace: '
@@ -259,4 +243,16 @@ bindsym $mod+Control+Down exec swaymsg "move container to output down"
 bindsym $mod+Tab workspace next_on_output
 bindsym $mod+Shift+Tab workspace prev_on_output
 
-bindsym $mod+b exec firefox
+#exec swayidle -w timeout 600 'swaymsg "output * dpms off"' timeout 600 'swaylock -f -c 000000' timeout 1200 'systemctl suspend' resume 'swaymsg "output * dpms on"' before-sleep 'swaylock -f -c 000000'
+exec swayidle -w timeout 900 'swaylock -f -c 000000' timeout 900 'systemctl suspend' resume 'swaymsg "output * dpms on"' before-sleep 'swaylock -f -c 000000'
+exec way-displays > /tmp/way-displays.${XDG_VTNR}.${USER}.log 2>&1
+exec blueman-applet
+exec iwgtk -i
+exec --no-startup-id swaymsg 'workspace 0; exec thunderbird;'
+exec --no-startup-id swaymsg 'workspace 9; exec element-desktop;'
+exec --no-startup-id swaymsg 'workspace 1; exec firefox;'
+
+include ~/.cache/wal/colors-sway
+
+exec --no-startup-id /home/kenny/bin/chwall
+

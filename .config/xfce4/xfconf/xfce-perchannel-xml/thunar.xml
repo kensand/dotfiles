@@ -4,14 +4,14 @@
   <property name="last-view" type="string" value="ThunarDetailsView"/>
   <property name="last-location-bar" type="string" value="ThunarLocationEntry"/>
   <property name="last-icon-view-zoom-level" type="string" value="THUNAR_ZOOM_LEVEL_75_PERCENT"/>
-  <property name="last-window-width" type="int" value="1920"/>
-  <property name="last-window-height" type="int" value="1053"/>
+  <property name="last-window-width" type="int" value="1101"/>
+  <property name="last-window-height" type="int" value="1462"/>
   <property name="last-window-maximized" type="bool" value="false"/>
   <property name="last-separator-position" type="int" value="111"/>
   <property name="last-show-hidden" type="bool" value="true"/>
   <property name="misc-single-click" type="bool" value="false"/>
   <property name="last-details-view-zoom-level" type="string" value="THUNAR_ZOOM_LEVEL_38_PERCENT"/>
-  <property name="last-details-view-column-widths" type="string" value="50,127,127,120,86,691,50,77,1211,205,50,76,50,394"/>
+  <property name="last-details-view-column-widths" type="string" value="50,127,118,120,86,691,50,77,607,205,50,75,50,189"/>
   <property name="last-sort-column" type="string" value="THUNAR_COLUMN_DATE_MODIFIED"/>
   <property name="last-sort-order" type="string" value="GTK_SORT_DESCENDING"/>
   <property name="last-details-view-visible-columns" type="string" value="THUNAR_COLUMN_DATE_MODIFIED,THUNAR_COLUMN_NAME,THUNAR_COLUMN_SIZE,THUNAR_COLUMN_TYPE"/>

@@ -5,6 +5,10 @@
 !.config/tmux-sidebar
 !.tmux.conf
 !.config/
+!.config/hypr
+!.config/hypr/**
+!.config/wal
+!.config/wal/**
 !.config/i3
 !.config/sway
 !.config/i3status

@@ -1,4 +1,6 @@
 let g:netrw_dirhistmax  =10
-let g:netrw_dirhistcnt =2
+let g:netrw_dirhistcnt =4
+let g:netrw_dirhist_4='/home/kenny/git/arduino/transmitter'
+let g:netrw_dirhist_3='/home/kenny/.config/way-displays'
 let g:netrw_dirhist_2='/home/kenny/git/rewind-workspace/.idea'
 let g:netrw_dirhist_1='/home/kenny/.ssh'

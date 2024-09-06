@@ -2,5 +2,5 @@
 	email = git@kensand.net
 	name = kensand
 [core]
-	editor = nvim
+	editor = vim
 	autocrlf = input
