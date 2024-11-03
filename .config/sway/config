@@ -34,6 +34,16 @@ default_border pixel 10
 hide_edge_borders smart
 for_window [class="^.*"] border pixel 1
 
+for_window [window_role="pop-up"] floating enable
+for_window [window_role="bubble"] floating enable
+for_window [window_role="dialog"] floating enable
+for_window [window_type="dialog"] floating enable
+# Notification Daemon
+exec swaync
+
+# Toggle control center
+bindsym $mod+Shift+n exec swaync-client -t -sw
+
 smart_gaps on
 gaps inner 10
 gaps outer 10
@@ -248,9 +258,14 @@ exec swayidle -w timeout 900 'swaylock -f -c 000000' timeout 900 'systemctl susp
 exec way-displays > /tmp/way-displays.${XDG_VTNR}.${USER}.log 2>&1
 exec blueman-applet
 exec iwgtk -i
+exec gnome-keyring-daemon --start --foreground --components=secrets
 exec --no-startup-id swaymsg 'workspace 0; exec thunderbird;'
 exec --no-startup-id swaymsg 'workspace 9; exec element-desktop;'
 exec --no-startup-id swaymsg 'workspace 1; exec firefox;'
+
+exec rm -f /tmp/sovpipe && mkfifo /tmp/sovpipe && tail -f /tmp/sovpipe | sov -t 500
+bindsym --no-repeat $mod exec "echo 1 > /tmp/sovpipe"
+bindsym --release $mod exec "echo 0 > /tmp/sovpipe"
 
 include ~/.cache/wal/colors-sway
 
