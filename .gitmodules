@@ -4,6 +4,3 @@
 [submodule ".config/oh-my-zsh"]
 	path = .config/oh-my-zsh
 	url = https://github.com/robbyrussell/oh-my-zsh.git
-[submodule ".config/i3-workspace-names-daemon"]
-	path = .config/i3-workspace-names-daemon
-	url = git@forgejo.kensand.net:kensand/i3-workspace-names-daemon.git
