@@ -251,8 +251,13 @@ if $DO_PACKAGES; then
 		info "Bootstrapping paru from AUR..."
 		# Ensure build deps are present
 		pacman -S --noconfirm --needed base-devel cargo git
-		build_dir=$(mktemp -d)
-		chmod 755 "$build_dir" # user must be able to enter it
+		# Build the package as the user (makepkg) and install it as root (pacman -U),
+		# because a normal user has no passwordless sudo for the -i step.
+		# The build dir must be created *by the user* (via mktemp inside sudo -u) so
+		# it is user-owned and writable — a root-created mktemp -d dir is root-owned
+		# and the user cannot write into it ("could not create work tree dir: 
+		# permission denied").
+		build_dir=$(sudo -u "$USER_NAME" mktemp -d)
 		sudo -u "$USER_NAME" bash -c "
 			set -e
 			cd '$build_dir'
