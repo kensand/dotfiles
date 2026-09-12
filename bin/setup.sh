@@ -17,7 +17,7 @@
 
 set -euo pipefail
 
-DOTFILES_REPO="git@github.com:kensand/dotfiles.git"
+DOTFILES_REPO="https://github.com/kensand/dotfiles.git"
 DOTFILES_DIR="$HOME"
 USER_NAME="${SUDO_USER:-$USER}"
 
