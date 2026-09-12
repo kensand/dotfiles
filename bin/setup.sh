@@ -18,7 +18,6 @@
 set -euo pipefail
 
 DOTFILES_REPO="https://github.com/kensand/dotfiles.git"
-DOTFILES_DIR="$HOME"
 USER_NAME="${SUDO_USER:-$USER}"
 
 info() { echo "==> $1"; }
@@ -251,53 +250,9 @@ if $DO_PACKAGES; then
 	systemctl enable sddm
 	systemctl enable iwd
 	systemctl enable tailscaled
-fi
-
-# ════════════════════════════════════════════════════════════════
-# DOTFILES
-# ════════════════════════════════════════════════════════════════
-if $DO_DOTFILES; then
-	# Run as the user, not root
-	if [[ $EUID -eq 0 ]]; then
-		sudo -u "$USER_NAME" bash "$0" --dotfiles
-		exit $?
-	fi
-
-	info "Setting up dotfiles..."
 
 	# ────────────────────────────────────────────────────────────
-	# Clone or update the dotfiles repo
-	# ────────────────────────────────────────────────────────────
-	if [[ -d "$DOTFILES_DIR/.git" ]]; then
-		skip "Dotfiles repo already exists, pulling latest..."
-		cd "$DOTFILES_DIR"
-		git pull --ff-only
-	else
-		info "Initializing dotfiles repo in $DOTFILES_DIR..."
-		cd "$DOTFILES_DIR"
-		git init
-		git remote add origin "$DOTFILES_REPO"
-		git pull origin framework-13
-		git branch -M framework-13
-	fi
-
-	# ────────────────────────────────────────────────────────────
-	# Initialize submodules
-	# ────────────────────────────────────────────────────────────
-	info "Initializing submodules..."
-	git submodule update --init --recursive
-
-	# ────────────────────────────────────────────────────────────
-	# Set up oh-my-zsh
-	# ────────────────────────────────────────────────────────────
-	# .zshrc expects ZSH="$HOME/.config/oh-my-zsh"
-	# The submodule lives at .config/oh-my-zsh already — just make sure it's there.
-	if [[ ! -d "$HOME/.config/oh-my-zsh" ]]; then
-		warn "oh-my-zsh submodule missing. Run: git submodule update --init"
-	fi
-
-	# ────────────────────────────────────────────────────────────
-	# Set user shell to zsh
+	# 13. Set user shell to zsh
 	# ────────────────────────────────────────────────────────────
 	current_shell=$(getent passwd "$USER_NAME" | cut -d: -f7)
 	if [[ "$current_shell" != "/usr/bin/zsh" ]]; then
@@ -305,6 +260,51 @@ if $DO_DOTFILES; then
 		chsh -s /usr/bin/zsh "$USER_NAME"
 	else
 		skip "Shell already zsh"
+	fi
+fi
+
+# ════════════════════════════════════════════════════════════════
+# DOTFILES
+# ════════════════════════════════════════════════════════════════
+if $DO_DOTFILES; then
+	info "Setting up dotfiles..."
+	USER_HOME=$(getent passwd "$USER_NAME" | cut -d: -f6)
+
+	# ────────────────────────────────────────────────────────────
+	# Clone or update the dotfiles repo (as user, in their home)
+	# ────────────────────────────────────────────────────────────
+	if [[ -d "$USER_HOME/.git" ]]; then
+		skip "Dotfiles repo already exists, pulling latest..."
+		sudo -u "$USER_NAME" git -C "$USER_HOME" pull --ff-only
+	else
+		info "Initializing dotfiles repo in $USER_HOME..."
+		sudo -u "$USER_NAME" bash -c "
+			cd '$USER_HOME'
+			git init
+			git remote add origin '$DOTFILES_REPO'
+			git pull origin framework-13
+			git branch -M framework-13
+		"
+	fi
+
+	# ────────────────────────────────────────────────────────────
+	# Initialize submodules
+	# ────────────────────────────────────────────────────────────
+	info "Initializing submodules..."
+	sudo -u "$USER_NAME" git -C "$USER_HOME" submodule update --init --recursive
+
+	# ────────────────────────────────────────────────────────────
+	# Konsole profiles
+	# ────────────────────────────────────────────────────────────
+	if [[ -d "$USER_HOME/.local/share/konsole" ]]; then
+		skip "Konsole profiles already in place"
+	else
+		info "Setting up konsole profiles..."
+		sudo -u "$USER_NAME" mkdir -p "$USER_HOME/.local/share/konsole"
+		sudo -u "$USER_NAME" cp "$USER_HOME/.local/share/konsole/Linux.colorscheme" \
+			"$USER_HOME/.local/share/konsole/Profile 1.profile" \
+			"$USER_HOME/.local/share/konsole/bookmarks.xml" \
+			"$USER_HOME/.local/share/konsole/" 2>/dev/null || true
 	fi
 
 	# ────────────────────────────────────────────────────────────
@@ -317,20 +317,18 @@ if $DO_DOTFILES; then
 	# ────────────────────────────────────────────────────────────
 	# Create wal cache dir
 	# ────────────────────────────────────────────────────────────
-	if [[ ! -d "$HOME/.cache/wal" ]]; then
+	if [[ ! -d "$USER_HOME/.cache/wal" ]]; then
 		info "Creating ~/.cache/wal..."
-		mkdir -p "$HOME/.cache/wal/schemes"
+		sudo -u "$USER_NAME" mkdir -p "$USER_HOME/.cache/wal/schemes"
 	fi
 
 	# ────────────────────────────────────────────────────────────
 	# Enable systemd user services from dotfiles
 	# ────────────────────────────────────────────────────────────
-	if [[ -f "$HOME/.config/systemd/user/xdg-desktop-portal.service" ]]; then
+	if [[ -f "$USER_HOME/.config/systemd/user/xdg-desktop-portal.service" ]]; then
 		info "Enabling xdg-desktop-portal user service..."
-		cp "$HOME/.config/systemd/user/xdg-desktop-portal.service" \
-			"$HOME/.config/systemd/user/" 2>/dev/null || true
-		systemctl --user daemon-reload
-		systemctl --user enable xdg-desktop-portal.service
+		sudo -u "$USER_NAME" systemctl --user daemon-reload 2>/dev/null || true
+		sudo -u "$USER_NAME" systemctl --user enable xdg-desktop-portal.service 2>/dev/null || true
 	fi
 
 	info "Dotfiles setup complete!"
