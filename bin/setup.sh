@@ -24,7 +24,38 @@ info() { echo "==> $1"; }
 skip() { echo "==> [skip] $1"; }
 warn() { echo "==> WARNING: $1"; }
 
+# Surface where the script dies instead of exiting silently (set -e + pipefail
+# otherwise swallow the failing command when run via 'curl | sudo -E bash').
+trap 'echo "==> ERROR: setup.sh failed at line $LINENO (last command exited $?). See above for details." >&2' ERR
+
+# pacman -S --needed is silent when everything is already installed, which made
+# re-runs look like they did nothing. Wrap it to report what was installed vs
+# skipped. Installs each package, tolerating a single missing target only if the
+# whole rest resolves (we call it per-section, so one bad target still surfaces).
+pacman_install() {
+	local pkgs=("$@")
+	# Ask pacman to plan the install; it prints "Target(s)" and "Packages: N".
+	local plan
+	if plan=$(pacman -S --noconfirm --needed --print "${pkgs[@]}" 2>/dev/null); then
+		local count
+		count=$(echo "$plan" | grep -c '^/usr/' || true)
+		if [ "$count" -eq 0 ]; then
+			skip "all already installed: ${pkgs[*]}"
+			return 0
+		fi
+		info "installing $count package(s) (rest already present)"
+		pacman -S --noconfirm --needed "${pkgs[@]}"
+	else
+		# --print failed (a target not found). Fall back to the real install so
+		# the actual pacman error is shown.
+		warn "pre-check failed for: ${pkgs[*]} — attempting install anyway"
+		pacman -S --noconfirm --needed "${pkgs[@]}"
+	fi
+}
+
+# ────────────────────────────────────────────────────────────
 # Parse args
+# ────────────────────────────────────────────────────────────
 DO_PACKAGES=true
 DO_DOTFILES=true
 for arg in "$@"; do
@@ -37,6 +68,13 @@ for arg in "$@"; do
 		;;
 	esac
 done
+
+# ────────────────────────────────────────────────────────────
+# 0. Banner / mode (after arg parsing so flags are reflected)
+# ────────────────────────────────────────────────────────────
+info "Arch + Sway setup starting (user: $USER_NAME)"
+if $DO_PACKAGES; then info "mode: packages"; else skip "packages (not selected)"; fi
+if $DO_DOTFILES; then info "mode: dotfiles"; else skip "dotfiles (not selected)"; fi
 
 # ════════════════════════════════════════════════════════════════
 # PACKAGES
@@ -84,7 +122,7 @@ if $DO_PACKAGES; then
 		jq
 	)
 	info "Installing system packages..."
-	pacman -S --noconfirm --needed "${pacman_pkgs[@]}"
+	pacman_install "${pacman_pkgs[@]}"
 
 	# ────────────────────────────────────────────────────────────
 	# 2. Sway / Wayland desktop
@@ -108,7 +146,7 @@ if $DO_PACKAGES; then
 		dmenu
 	)
 	info "Installing Sway/Wayland packages..."
-	pacman -S --noconfirm --needed "${pacman_pkgs[@]}"
+	pacman_install "${pacman_pkgs[@]}"
 
 	# ────────────────────────────────────────────────────────────
 	# 3. Audio (Pipewire stack)
@@ -123,7 +161,7 @@ if $DO_PACKAGES; then
 		pavucontrol
 	)
 	info "Installing Pipewire audio stack..."
-	pacman -S --noconfirm --needed "${pacman_pkgs[@]}"
+	pacman_install "${pacman_pkgs[@]}"
 
 	# ────────────────────────────────────────────────────────────
 	# 4. Networking
@@ -136,7 +174,7 @@ if $DO_PACKAGES; then
 		blueman
 	)
 	info "Installing networking packages..."
-	pacman -S --noconfirm --needed "${pacman_pkgs[@]}"
+	pacman_install "${pacman_pkgs[@]}"
 
 	# ────────────────────────────────────────────────────────────
 	# 5. Applications
@@ -152,7 +190,7 @@ if $DO_PACKAGES; then
 		kitty
 	)
 	info "Installing applications..."
-	pacman -S --noconfirm --needed "${pacman_pkgs[@]}"
+	pacman_install "${pacman_pkgs[@]}"
 
 	# ────────────────────────────────────────────────────────────
 	# 6. Desktop portal & session
@@ -166,7 +204,7 @@ if $DO_PACKAGES; then
 		qt6-wayland
 	)
 	info "Installing desktop portal packages..."
-	pacman -S --noconfirm --needed "${pacman_pkgs[@]}"
+	pacman_install "${pacman_pkgs[@]}"
 
 	# ────────────────────────────────────────────────────────────
 	# 7. Fonts
@@ -176,7 +214,7 @@ if $DO_PACKAGES; then
 		woff2-font-awesome
 	)
 	info "Installing fonts..."
-	pacman -S --noconfirm --needed "${pacman_pkgs[@]}"
+	pacman_install "${pacman_pkgs[@]}"
 
 	# ────────────────────────────────────────────────────────────
 	# 8. Python & scripting
@@ -187,7 +225,7 @@ if $DO_PACKAGES; then
 		nvm
 	)
 	info "Installing Python packages..."
-	pacman -S --noconfirm --needed "${pacman_pkgs[@]}"
+	pacman_install "${pacman_pkgs[@]}"
 
 	# ────────────────────────────────────────────────────────────
 	# 8b. Node.js LTS (via nvm)
@@ -233,7 +271,7 @@ if $DO_PACKAGES; then
 		sshfs
 	)
 	info "Installing utilities..."
-	pacman -S --noconfirm --needed "${pacman_pkgs[@]}"
+	pacman_install "${pacman_pkgs[@]}"
 
 	# ────────────────────────────────────────────────────────────
 	# 10. Graphics (AMD)
