@@ -21,21 +21,21 @@ DOTFILES_REPO="git@forgejo.kensand.net:kensand/dotfiles.git"
 DOTFILES_DIR="$HOME"
 USER_NAME="${SUDO_USER:-$USER}"
 
-info()  { echo "==> $1"; }
-skip()  { echo "==> [skip] $1"; }
-warn()  { echo "==> WARNING: $1"; }
+info() { echo "==> $1"; }
+skip() { echo "==> [skip] $1"; }
+warn() { echo "==> WARNING: $1"; }
 
 # Parse args
 DO_PACKAGES=true
 DO_DOTFILES=true
 for arg in "$@"; do
 	case "$arg" in
-		--packages) DO_DOTFILES=false ;;
-		--dotfiles) DO_PACKAGES=false ;;
-		-h|--help)
-			echo "Usage: sudo -E bash setup.sh [--packages|--dotfiles]"
-			exit 0
-			;;
+	--packages) DO_DOTFILES=false ;;
+	--dotfiles) DO_PACKAGES=false ;;
+	-h | --help)
+		echo "Usage: sudo -E bash setup.sh [--packages|--dotfiles]"
+		exit 0
+		;;
 	esac
 done
 
@@ -43,7 +43,10 @@ done
 # PACKAGES
 # ════════════════════════════════════════════════════════════════
 if $DO_PACKAGES; then
-	[[ $EUID -ne 0 ]] && { echo "Packages section requires root (sudo -E)." >&2; exit 1; }
+	[[ $EUID -ne 0 ]] && {
+		echo "Packages section requires root (sudo -E)." >&2
+		exit 1
+	}
 
 	# ────────────────────────────────────────────────────────────
 	# 1. System essentials
