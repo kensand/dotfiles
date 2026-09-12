@@ -8,7 +8,7 @@ Prerequisites: fresh Arch install, bootloader configured, a user account created
 and SSH key added to your Forgejo so the repo can be fetched.
 
 ```sh
-cd ~ && git init && git remote add origin git@forgejo.kensand.net:kensand/dotfiles.git && git pull origin framework-13 && git submodule update --init --recursive && git branch -M framework-13 && sudo -E bash bin/setup.sh --dotfiles
+cd ~ && git init && git remote add origin git@github.com:kensand/dotfiles.git && git pull origin framework-13 && git submodule update --init --recursive && git branch -M framework-13 && sudo -E bash bin/setup.sh --dotfiles
 ```
 
 ## Re-running on an existing system
