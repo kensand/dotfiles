@@ -1,6 +1,6 @@
 [submodule ".config/Daily-Reddit-Wallpaper"]
 	path = .config/Daily-Reddit-Wallpaper
-	url = git@forgejo.kensand.net:kensand/Daily-Reddit-Wallpaper.git
+	url = https://codeberg.org/kensand/Daily-Reddit-Wallpaper.git
 [submodule ".config/oh-my-zsh"]
 	path = .config/oh-my-zsh
 	url = https://github.com/robbyrussell/oh-my-zsh.git

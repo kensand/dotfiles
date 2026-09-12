@@ -1,0 +1,8 @@
+[Service]
+ExecStart=/usr/lib/xdg-desktop-portal --replace
+
+[Unit]
+Description=Run xdg-desktop-portal for screensharing support
+
+[Install]
+WantedBy=default.target

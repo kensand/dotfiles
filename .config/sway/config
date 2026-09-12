@@ -258,6 +258,8 @@ exec swayidle -w timeout 900 'swaylock -f -c 000000' timeout 900 'systemctl susp
 exec way-displays > /tmp/way-displays.${XDG_VTNR}.${USER}.log 2>&1
 exec blueman-applet
 exec iwgtk -i
+exec export XDG_CURRENT_DESKTOP=sway && /usr/lib/xdg-desktop-portal -r & /usr/lib/xdg-desktop-portal-wlr
+exec --no-startup-id /usr/lib/polkit-kde-authentication-agent-1
 exec gnome-keyring-daemon --start --foreground --components=secrets
 exec --no-startup-id swaymsg 'workspace 0; exec thunderbird;'
 exec --no-startup-id swaymsg 'workspace 9; exec element-desktop;'
