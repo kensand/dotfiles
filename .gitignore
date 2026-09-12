@@ -40,6 +40,13 @@
 !.local/share/konsole/
 !.local/share/konsole/**
 
+# Pi coding agent (only settings.json is tracked; .pi/agent/.gitignore
+# blocks auth.json, mcp.json, models.json, sessions/, caches, etc.)
+!.pi/
+!.pi/agent/
+!.pi/agent/.gitignore
+!.pi/agent/settings.json
+
 # Vim
 !.vim/
 !.vim/*

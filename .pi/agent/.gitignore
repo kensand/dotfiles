@@ -1,0 +1,19 @@
+# Pi agent config: track ONLY settings.json.
+# Everything else here holds secrets, API keys, LAN endpoints, session
+# transcripts, and package caches — never commit any of it.
+#
+#   auth.json          -> provider API keys (sk-ant-..., /login tokens)
+#   mcp.json           -> MCP server env, e.g. real Forgejo/Woodpecker tokens
+#   models.json        -> local model providers with LAN IPs
+#   models-store.json  -> model cache
+#   mcp-cache.json     -> discovered tool cache
+#   mcp-onboarding.json-> onboarding state
+#   run-history.jsonl  -> subagent run log
+#   sessions/          -> full session transcripts
+#   npm/               -> installed pi packages + node_modules
+#   bin/               -> pi package binaries
+#   trust.json         -> per-project trust decisions
+
+*
+!settings.json
+!.gitignore

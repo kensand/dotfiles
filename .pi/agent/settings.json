@@ -1,0 +1,16 @@
+{
+  "packages": [
+    "npm:@juicesharp/rpiv-ask-user-question",
+    "npm:@juicesharp/rpiv-todo",
+    "npm:pi-lens",
+    "npm:pi-web-access",
+    "npm:pi-mcp-adapter",
+    "../../git/pi-worker",
+    "npm:@almegal/pi-file-browser",
+    "npm:pi-subagents"
+  ],
+  "lastChangelogVersion": "0.84.1",
+  "theme": "dark",
+  "defaultProvider": "fennec",
+  "defaultModel": "ai"
+}

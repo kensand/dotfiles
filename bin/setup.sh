@@ -135,6 +135,7 @@ if $DO_PACKAGES; then
 		iwgtk
 		dnsmasq
 		wireguard-tools
+		wg-quick
 		tailscale
 		blueman
 	)
@@ -210,6 +211,19 @@ if $DO_PACKAGES; then
 	fi
 
 	# ────────────────────────────────────────────────────────────
+	# 8c. pi coding agent (npm global, needs Node.js from 8b)
+	# ────────────────────────────────────────────────────────────
+	# Install as the user. --ignore-scripts per pi's docs. The dotfiles repo
+	# tracks only ~/.pi/agent/settings.json (see .pi/agent/.gitignore); auth,
+	# mcp, models, sessions, and caches stay local and are never committed.
+	if ! sudo -u "$USER_NAME" bash -c 'source /usr/share/nvm/init-nvm.sh; command -v pi >/dev/null 2>&1'; then
+		info "Installing pi coding agent (npm global)..."
+		sudo -u "$USER_NAME" bash -c 'source /usr/share/nvm/init-nvm.sh; npm install -g --ignore-scripts @earendil-works/pi-coding-agent'
+	else
+		skip "pi coding agent already installed"
+	fi
+
+	# ────────────────────────────────────────────────────────────
 	# 9. Utilities
 	# ────────────────────────────────────────────────────────────
 	pacman_pkgs=(
@@ -244,7 +258,7 @@ if $DO_PACKAGES; then
 		# Ensure build deps are present
 		pacman -S --noconfirm --needed base-devel cargo git
 		build_dir=$(mktemp -d)
-		chmod 755 "$build_dir"   # user must be able to enter it
+		chmod 755 "$build_dir" # user must be able to enter it
 		sudo -u "$USER_NAME" bash -c "
 			set -e
 			cd '$build_dir'
