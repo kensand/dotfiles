@@ -121,7 +121,6 @@ if $DO_PACKAGES; then
 		wireplumber
 		gst-plugin-pipewire
 		pavucontrol
-		flite1
 	)
 	info "Installing Pipewire audio stack..."
 	pacman -S --noconfirm --needed "${pacman_pkgs[@]}"
@@ -131,10 +130,8 @@ if $DO_PACKAGES; then
 	# ────────────────────────────────────────────────────────────
 	pacman_pkgs=(
 		iwd
-		iwgtk
 		dnsmasq
 		wireguard-tools
-		wg-quick
 		tailscale
 		blueman
 	)
@@ -177,7 +174,6 @@ if $DO_PACKAGES; then
 	pacman_pkgs=(
 		ttf-fira-code
 		woff2-font-awesome
-		ttf-font-awesome-4
 	)
 	info "Installing fonts..."
 	pacman -S --noconfirm --needed "${pacman_pkgs[@]}"
@@ -188,7 +184,6 @@ if $DO_PACKAGES; then
 	pacman_pkgs=(
 		python
 		python-pip
-		python-pywal
 		nvm
 	)
 	info "Installing Python packages..."
@@ -279,6 +274,9 @@ if $DO_PACKAGES; then
 		pw-volume \
 		sov \
 		libinput-gestures \
+		iwgtk \
+		python-pywal \
+		ttf-font-awesome-4 \
 		jetbrains-toolbox
 
 	# ────────────────────────────────────────────────────────────
