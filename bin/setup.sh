@@ -189,9 +189,25 @@ if $DO_PACKAGES; then
 		python
 		python-pip
 		python-pywal
+		nvm
 	)
 	info "Installing Python packages..."
 	pacman -S --noconfirm --needed "${pacman_pkgs[@]}"
+
+	# ────────────────────────────────────────────────────────────
+	# 8b. Node.js LTS (via nvm)
+	# ────────────────────────────────────────────────────────────
+	# nvm is a shell function; load it, then install LTS if not present.
+	if [[ -f /usr/share/nvm/init-nvm.sh ]]; then
+		if ! sudo -u "$USER_NAME" bash -c 'source /usr/share/nvm/init-nvm.sh; nvm version --lts >/dev/null 2>&1'; then
+			info "Installing Node.js LTS via nvm..."
+			sudo -u "$USER_NAME" bash -c 'source /usr/share/nvm/init-nvm.sh; nvm install --lts && nvm alias default lts/*'
+		else
+			skip "Node.js LTS already installed"
+		fi
+	else
+		warn "nvm init script not found; skipping Node.js LTS install"
+	fi
 
 	# ────────────────────────────────────────────────────────────
 	# 9. Utilities
@@ -220,17 +236,25 @@ if $DO_PACKAGES; then
 	# ────────────────────────────────────────────────────────────
 	# 11. AUR packages (paru)
 	# ────────────────────────────────────────────────────────────
+	# paru is built from source (needs cargo, from base-devel/rust). We build the
+	# package as the user (makepkg) and install it as root (pacman -U), because a
+	# normal user has no passwordless sudo for the -i step.
 	if ! command -v paru &>/dev/null; then
 		info "Bootstrapping paru from AUR..."
-		sudo -u "$USER_NAME" bash -c '
+		# Ensure build deps are present
+		pacman -S --noconfirm --needed base-devel cargo git
+		build_dir=$(mktemp -d)
+		chmod 755 "$build_dir"   # user must be able to enter it
+		sudo -u "$USER_NAME" bash -c "
 			set -e
-			tmpdir=$(mktemp -d)
-			cd "$tmpdir"
+			cd '$build_dir'
 			git clone --depth 1 https://aur.archlinux.org/paru.git
 			cd paru
-			makepkg -si --noconfirm
-			rm -rf "$tmpdir"
-		'
+			makepkg -s --noconfirm
+		"
+		# Install the built package (and its debug split) as root
+		pacman -U --noconfirm "$build_dir"/paru/*.pkg.tar.zst
+		sudo rm -rf "$build_dir"
 	else
 		skip "paru already installed"
 	fi

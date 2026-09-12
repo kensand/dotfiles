@@ -1,8 +1,92 @@
 #!/bin/bash
-pushd $HOME/.config/Daily-Reddit-Wallpaper
-./change_wallpaper_reddit.py
-rm $HOME/.cache/wal/schemes/* -rf
-cat ~/.cache/wal/sequences & wal -i current.jpg
-swaymsg output "*" bg $HOME/.config/Daily-Reddit-Wallpaper/current.jpg fill
-popd
+# chwall - fetch a daily wallpaper from a reddit subreddit (no auth) and
+# theme the session with wal.
+#
+# How it works:
+#   1. Fetch the top-of-day RSS feed for the subreddit (public, no credentials)
+#   2. Grab the top post's thumbnail URL -> extract the image hash
+#   3. Download the FULL-RES original from i.redd.it (same hash, no query params)
+#   4. Run wal on the image to regenerate the color scheme
+#   5. Set the Sway wallpaper
+#
+# Usage: chwall [subreddit]
+#   defaults to the sub listed in $CHWALL_SUB (or "earthporn")
 
+set -euo pipefail
+
+SUB="${1:-${CHWALL_SUB:-earthporn}}"
+UA="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+DIR="$HOME/.config/Daily-Reddit-Wallpaper"
+OUT="$DIR/current.jpg"
+WAL_CACHE="$HOME/.cache/wal"
+
+# Make sure we have somewhere to put the image
+mkdir -p "$DIR" "$WAL_CACHE/schemes"
+
+fetch() {
+	local url="$1" dest="$2"
+	# Retry a couple times; reddit rate-limits aggressively
+	local attempt code
+	for attempt in 1 2 3; do
+		code=$(curl -s -A "$UA" -H "Referer: https://www.reddit.com/" \
+			-o "$dest" -w "%{http_code}" "$url" 2>/dev/null || echo "000")
+		if [[ "$code" == "200" ]] && [[ -s "$dest" ]]; then
+			return 0
+		fi
+		echo "  retry $attempt for $(basename "$url") (HTTP $code), waiting..." >&2
+		sleep $((attempt * 15))
+	done
+	return 1
+}
+
+# 1. Fetch the top-of-day RSS feed
+echo "==> Fetching top of day from r/$SUB..."
+feed=$(mktemp)
+fetch "https://www.reddit.com/r/$SUB/top/.rss?t=day&limit=10" "$feed" || {
+	echo "ERROR: could not fetch RSS feed from r/$SUB" >&2
+	exit 1
+}
+
+# 2. Find the first post with a thumbnail and extract its image hash
+hash=$(python3 - "$feed" <<'PY'
+import sys, xml.etree.ElementTree as ET
+ns = {'atom': 'http://www.w3.org/2005/Atom'}
+root = ET.parse(sys.argv[1]).getroot()
+for entry in root.findall('atom:entry', ns):
+    for child in entry:
+        if 'thumbnail' in child.tag:
+            url = child.get('url', '')
+            if 'preview.redd.it/' in url:
+                # avnc8jpbayoh1.jpeg?width=640... -> avnc8jpbayoh1
+                print(url.split('preview.redd.it/')[1].split('?')[0].rsplit('.', 1)[0])
+                sys.exit(0)
+    # some posts have media:content but no thumbnail; skip
+sys.exit(1)
+PY
+) || {
+	echo "ERROR: no thumbnail found in feed" >&2
+	rm -f "$feed"
+	exit 1
+}
+rm -f "$feed"
+echo "  image hash: $hash"
+
+# 3. Download the full-res original
+echo "==> Downloading full-res wallpaper..."
+fetch "https://i.redd.it/$hash.jpeg" "$OUT" || {
+	echo "ERROR: could not download wallpaper (hash: $hash)" >&2
+	exit 1
+}
+echo "  saved to $OUT"
+
+# 4. Regenerate the wal color scheme
+echo "==> Generating color scheme with wal..."
+rm -f "$WAL_CACHE/schemes"/* 2>/dev/null || true
+cat "$WAL_CACHE/sequences" &
+wal -i "$OUT" >/dev/null
+
+# 5. Set the Sway wallpaper
+echo "==> Setting Sway wallpaper..."
+swaymsg output '*' bg "$OUT" fill
+
+echo "Done."
