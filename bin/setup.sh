@@ -255,7 +255,7 @@ if $DO_PACKAGES; then
 		# because a normal user has no passwordless sudo for the -i step.
 		# The build dir must be created *by the user* (via mktemp inside sudo -u) so
 		# it is user-owned and writable — a root-created mktemp -d dir is root-owned
-		# and the user cannot write into it ("could not create work tree dir: 
+		# and the user cannot write into it ("could not create work tree dir:
 		# permission denied").
 		build_dir=$(sudo -u "$USER_NAME" mktemp -d)
 		sudo -u "$USER_NAME" bash -c "
@@ -275,7 +275,6 @@ if $DO_PACKAGES; then
 	info "Installing AUR packages..."
 	sudo -u "$USER_NAME" paru -S --noconfirm --needed \
 		way-displays \
-		grimshot \
 		pw-volume \
 		sov \
 		libinput-gestures \
