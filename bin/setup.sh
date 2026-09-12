@@ -130,7 +130,6 @@ if $DO_PACKAGES; then
 	# ────────────────────────────────────────────────────────────
 	pacman_pkgs=(
 		iwd
-		wpa_supplicant
 		iwgtk
 		dnsmasq
 		wireguard-tools
