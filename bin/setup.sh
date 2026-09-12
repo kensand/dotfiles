@@ -102,7 +102,6 @@ if $DO_PACKAGES; then
 		slurp
 		wl-clipboard
 		swappy
-		libinput-gestures
 		brightnessctl
 		sddm
 		i3-wm
@@ -279,6 +278,7 @@ if $DO_PACKAGES; then
 		grimshot \
 		pw-volume \
 		sov \
+		libinput-gestures \
 		jetbrains-toolbox
 
 	# ────────────────────────────────────────────────────────────
@@ -315,21 +315,34 @@ if $DO_DOTFILES; then
 		skip "Dotfiles repo already exists, pulling latest..."
 		sudo -u "$USER_NAME" git -C "$USER_HOME" pull --ff-only
 	else
-		info "Initializing dotfiles repo in $USER_HOME..."
-		sudo -u "$USER_NAME" bash -c "
-			cd '$USER_HOME'
-			git init
-			git remote add origin '$DOTFILES_REPO'
-			git pull origin framework-13
-			git branch -M framework-13
-		"
+		# Clone to a temp dir first: $HOME is non-empty on a fresh Arch install
+		# (stock .bashrc/.bash_profile/.bash_logout) and would make `git pull` into
+		# an in-place `git init` abort with "untracked files would be overwritten".
+		# We clone cleanly, then move the working tree + .git into $HOME, backing
+		# up any existing files that collide so nothing is lost.
+		info "Setting up dotfiles repo in $USER_HOME..."
+		sudo -u "$USER_NAME" bash -c '
+			set -e
+			repo_url="$1"; home="$2"
+			tmpdir=$(mktemp -d)
+			trap "rm -rf $tmpdir" EXIT
+			git clone --quiet --branch framework-13 "$repo_url" "$tmpdir/repo"
+			cd "$tmpdir/repo"
+			git submodule update --init --recursive
+			# Move every top-level path (files and .git) into $HOME. If a file of
+			# the same name already exists there (e.g. stock .bashrc), back it up
+			# first so nothing is lost.
+			mkdir -p "$home/.dotfiles-backup"
+			shopt -s dotglob nullglob
+			for item in *; do
+				dest="$home/$item"
+				if [ -e "$dest" ]; then
+					mv "$dest" "$home/.dotfiles-backup/$item"
+				fi
+				mv "$item" "$dest"
+			done
+		' _ "$DOTFILES_REPO" "$USER_HOME"
 	fi
-
-	# ────────────────────────────────────────────────────────────
-	# Initialize submodules
-	# ────────────────────────────────────────────────────────────
-	info "Initializing submodules..."
-	sudo -u "$USER_NAME" git -C "$USER_HOME" submodule update --init --recursive
 
 	# ────────────────────────────────────────────────────────────
 	# Konsole profiles
