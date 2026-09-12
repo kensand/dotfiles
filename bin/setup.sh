@@ -273,9 +273,12 @@ if $DO_DOTFILES; then
 		cd "$DOTFILES_DIR"
 		git pull --ff-only
 	else
-		info "Cloning dotfiles repo to $DOTFILES_DIR..."
-		git clone "$DOTFILES_REPO" "$DOTFILES_DIR"
+		info "Initializing dotfiles repo in $DOTFILES_DIR..."
 		cd "$DOTFILES_DIR"
+		git init
+		git remote add origin "$DOTFILES_REPO"
+		git pull origin framework-13
+		git branch -M framework-13
 	fi
 
 	# ────────────────────────────────────────────────────────────

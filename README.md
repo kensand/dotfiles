@@ -8,17 +8,8 @@ Prerequisites: fresh Arch install, bootloader configured, a user account created
 and SSH key added to your Forgejo so the repo can be fetched.
 
 ```sh
-cd ~ && git clone git@forgejo.kensand.net:kensand/dotfiles.git . && sudo -E bash bin/setup.sh
+cd ~ && git init && git remote add origin git@forgejo.kensand.net:kensand/dotfiles.git && git pull origin framework-13 && git submodule update --init --recursive && git branch -M framework-13 && sudo -E bash bin/setup.sh --dotfiles
 ```
-
-This:
-1. Clones the dotfiles repo directly into `$HOME`
-2. Installs system + AUR packages
-3. Initializes submodules (oh-my-zsh, Daily-Reddit-Wallpaper)
-4. Sets your shell to zsh
-5. Enables required services
-
-Log out and back in after.
 
 ## Re-running on an existing system
 
@@ -31,7 +22,7 @@ sudo -E bash ~/bin/setup.sh --dotfiles   # just pull dotfiles + submodules
 ## What's in here
 
 | Path | Purpose |
-|------|---------|
+| ------ | --------- |
 | `.config/sway/` | Sway window manager config |
 | `.config/waybar/` | Waybar panel config |
 | `.config/fuzzel/` | App launcher |
