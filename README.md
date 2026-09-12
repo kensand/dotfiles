@@ -4,12 +4,15 @@ Arch Linux + Sway/Wayland desktop setup.
 
 ## Setup (blank system)
 
-Prerequisites: fresh Arch install, bootloader configured, a user account created,
-and SSH key added to your Forgejo so the repo can be fetched.
+Prerequisites: fresh Arch install, bootloader configured, a user account created.
 
 ```sh
-cd ~ && git init && git remote add origin https://github.com/kensand/dotfiles.git && git pull origin framework-13 && git submodule update --init --recursive && git branch -M framework-13 && sudo -E bash bin/setup.sh --dotfiles
+curl -sL https://github.com/kensand/dotfiles/raw/framework-13/bin/setup.sh | sudo -E bash
 ```
+
+This installs packages, clones dotfiles into `$HOME`, sets up submodules, enables services, and sets your shell to zsh.
+
+Log out and back in after.
 
 ## Re-running on an existing system
 
