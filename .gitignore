@@ -52,3 +52,4 @@
 !bin/*
 !bin/*/*
 bin/jetbrains-toolbox
+.vim/.netrwhist

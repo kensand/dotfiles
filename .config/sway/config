@@ -271,5 +271,5 @@ bindsym --release $mod exec "echo 0 > /tmp/sovpipe"
 
 include ~/.cache/wal/colors-sway
 
-exec --no-startup-id /home/kenny/bin/chwall
+exec --no-startup-id $HOME/bin/chwall
 
