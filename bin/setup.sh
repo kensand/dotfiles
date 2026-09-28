@@ -114,6 +114,7 @@ if $DO_PACKAGES; then
 		bc
 		screen
 		git
+		github-cli
 		zsh
 		vim
 		nano
