@@ -5,9 +5,33 @@
 # happen inside sway-apply-layout.
 set -euo pipefail
 STATE="${XDG_CACHE_HOME:-$HOME/.cache}/sway-apply-layout/present"
+# Small log for debugging toggle behavior (double-fires, out-of-sync bails).
+LOG="${XDG_CACHE_HOME:-$HOME/.cache}/sway-apply-layout/present.log"
+log() { printf '%s %s\n' "$(date +%H:%M:%S)" "$*" >> "$LOG"; }
+
+# The binding can fire twice per physical press (sway dispatching the exec
+# from two input sources), so a second call ~1s later would immediately
+# toggle back. Gate on a timestamp: ignore re-entries within 2s of the last
+# accepted toggle. A brief mkdir guard stops two *concurrent* invocations
+# from both passing the gate; it's removed on exit so the lock never sticks.
+TS="${XDG_CACHE_HOME:-$HOME/.cache}/sway-apply-layout/present.ts"
+LOCKDIR="${XDG_CACHE_HOME:-$HOME/.cache}/sway-apply-layout/present.lock"
+release_lock() { rmdir "$LOCKDIR" 2>/dev/null || true; }
+trap release_lock EXIT
+
+now=$(date +%s)
+mkdir "$LOCKDIR" 2>/dev/null || { log "IGNORED concurrent"; exit 0; }
+last=$(cat "$TS" 2>/dev/null || echo 0)
+if (( now - last < 2 )); then
+  log "IGNORED double-fire (=$(( now - last ))s after last)"
+  exit 0
+fi
+printf '%s' "$now" > "$TS"
 self="$(readlink -f "$0" 2>/dev/null || printf '%s' "$0")"
 apply="$(command -v sway-apply-layout || true)"
-[[ -x $apply || $apply == "" ]] && apply="$self"   # fall back to this script's dir
+# Prefer the one on PATH; if it isn't found/executable, fall back to this
+# script's own directory (the two live together).
+[[ -x ${apply:-} ]] || apply="${self%/*}/sway-apply-layout"
 dir=${apply%/*}
 name=$(swaymsg -t get_outputs | jq -r \
   '.[] | select(.make=="Dell Inc." and .model=="DELL S3225QS" and .current_mode!=null) | .name')
@@ -18,15 +42,17 @@ h=$(swaymsg -t get_outputs | jq -r --arg n "$name" \
 h=${h//[$'\t'\r]/}   # a missing field would leave this multi-line
 
 mkdir -p "$(dirname "$STATE")"
+prev_state=$(cat "$STATE" 2>/dev/null || echo none)
 if [[ "$h" == 2160 ]]; then
-  [[ $(cat "$STATE" 2>/dev/null) == 2k ]] && exit 0   # already in present mode
+  if [[ "$prev_state" == 2k ]]; then log "bail: h=2160 but state=2k (out of sync)"; exit 0; fi
   echo 2k >"$STATE"
   msg="Dell $name: 4K -> 2K (presenting)"
 else
-  [[ $(cat "$STATE" 2>/dev/null) == 4k ]] && exit 0   # already at native
+  if [[ "$prev_state" == 4k ]]; then log "bail: h=1440 but state=4k (out of sync)"; exit 0; fi
   echo 4k >"$STATE"
   msg="Dell $name: 2K -> 4K (native)"
 fi
+log "$msg (was $prev_state, h=$h)"
 
 command -v notify-send >/dev/null && notify-send -t 3000 "Display" "$msg" || true
 # Re-layout async: this runs from a sway keybinding (exec), and blocking on
