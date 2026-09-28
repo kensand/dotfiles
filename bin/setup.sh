@@ -46,10 +46,18 @@ pacman_install() {
 		info "installing $count package(s) (rest already present)"
 		pacman -S --noconfirm --needed "${pkgs[@]}"
 	else
-		# --print failed (a target not found). Fall back to the real install so
-		# the actual pacman error is shown.
+		# --print failed (e.g. no TTY, or a target not found). Fall back to the
+		# real install so the actual pacman error is shown. Let the real exit
+		# code propagate so a failed install is NOT silently skipped (this
+		# previously made 'curl | sudo -E bash' installs appear to succeed when a
+		# package was missing).
 		warn "pre-check failed for: ${pkgs[*]} — attempting install anyway"
-		pacman -S --noconfirm --needed "${pkgs[@]}"
+		local rc=0
+		pacman -S --noconfirm --needed "${pkgs[@]}" || rc=$?
+		if [[ $rc -ne 0 ]]; then
+			echo "==> ERROR: package install failed for: ${pkgs[*]}" >&2
+		fi
+		return $rc
 	fi
 }
 
@@ -269,9 +277,21 @@ if $DO_PACKAGES; then
 		exfat-utils
 		squashfuse
 		sshfs
+		dolphin
 	)
 	info "Installing utilities..."
 	pacman_install "${pacman_pkgs[@]}"
+
+	# ────────────────────────────────────────────────────────────
+	# 9b. Container tools (Docker)
+	# ────────────────────────────────────────────────────────────
+	pacman_pkgs=(
+		docker
+		docker-buildx
+	)
+	info "Installing Docker..."
+	pacman_install "${pacman_pkgs[@]}"
+	systemctl enable docker
 
 	# ────────────────────────────────────────────────────────────
 	# 10. Graphics (AMD)
@@ -406,11 +426,11 @@ if $DO_DOTFILES; then
 	fi
 
 	# ────────────────────────────────────────────────────────────
-	# Create wal cache dir
+	# Create chwall + wal cache dirs
 	# ────────────────────────────────────────────────────────────
-	if [[ ! -d "$USER_HOME/.cache/wal" ]]; then
-		info "Creating ~/.cache/wal..."
-		sudo -u "$USER_NAME" mkdir -p "$USER_HOME/.cache/wal/schemes"
+	if [[ ! -d "$USER_HOME/.cache/chwall" || ! -d "$USER_HOME/.cache/wal" ]]; then
+		info "Creating ~/.cache/chwall and ~/.cache/wal..."
+		sudo -u "$USER_NAME" mkdir -p "$USER_HOME/.cache/chwall" "$USER_HOME/.cache/wal/schemes"
 	fi
 
 	# ────────────────────────────────────────────────────────────

@@ -20,15 +20,14 @@ bar {
   hidden_state hide
 }
 
-output DP-10 pos 0 0 res 2560x1440@59.95100Hz
-output DP-10 scale 1 
-output DP-10 adaptive_sync off
-output DP-9 pos 2560 0 res 2560x1440@59.95100Hz 
-output DP-9 scale 1
-output DP-9 adaptive_sync off
-output eDP-1 pos 5120 0 res 2256x1504@59.99900Hz 
-output eDP-1 scale 1
-output eDP-1 adaptive_sync off
+# Layout is computed dynamically by ~/.local/bin/sway-apply-layout
+# (monitors matched by make/model/serial; re-applied on every hotplug event).
+output * adaptive_sync off
+exec_always /home/kenny/.local/bin/sway-apply-layout
+exec_always /home/kenny/.local/bin/sway-apply-layout --watch
+
+# Toggle Dell 4K <-> presented 2K (re-layouts + chwall automatically)
+bindsym Ctrl+$mod+Shift+s exec /home/kenny/.local/bin/sway-present
 
 default_border pixel 10
 hide_edge_borders smart

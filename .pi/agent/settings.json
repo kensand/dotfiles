@@ -8,8 +8,8 @@
     "npm:@almegal/pi-file-browser",
     "npm:pi-subagents"
   ],
-  "lastChangelogVersion": "0.84.1",
+  "lastChangelogVersion": "0.87.1",
   "theme": "dark",
-  "defaultProvider": "fennec",
+  "defaultProvider": "guanaco",
   "defaultModel": "ai"
 }

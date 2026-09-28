@@ -1,0 +1,133 @@
+#!/usr/bin/env bash
+# Adaptive relative layout for sway. Monitors are matched by
+# make/model/serial (survives port/dock changes); whatever is connected is
+# arranged left->right in ORDER, top-aligned, with no gaps. Idempotent:
+# only issues swaymsg commands for real differences, so re-applying never
+# re-modes/blank healthy outputs and the watcher can't self-loop.
+#
+# Usage:
+#   sway-apply-layout           # apply once
+#   sway-apply-layout --watch   # re-apply on hotplug events
+#
+# The Dell 4K's resolution follows the present-mode state file maintained
+# by sway-present (4k = native, 2k = renders 1440p downscaled).
+set -uo pipefail
+
+STATE="${XDG_CACHE_HOME:-$HOME/.cache}/sway-apply-layout/present"
+WATCHER_PID="${XDG_CACHE_HOME:-$HOME/.cache}/sway-apply-layout/watcher.pid"
+
+# Left-to-right order; unknown monitors are appended on the right.
+ORDER=(
+  "BOE 0x0BCA Unknown"
+  "Dell Inc. DELL S3225QS BKL5DF4"
+  "AOC Q27G1WG4 0x00014D8B"
+)
+
+spec() {  # key -> "mode transform scale"; empty = unknown monitor
+  set +e  # empty result is a normal return for unknown monitors, not an error
+  case "$1" in
+    "BOE 0x0BCA Unknown")
+      echo "2256x1504@59.999Hz normal 1" ;;
+    "Dell Inc. DELL S3225QS BKL5DF4")
+      if [[ "$(cat "$STATE" 2>/dev/null)" == 2k ]]; then
+        echo "2560x1440@59.951Hz normal 1"
+      else
+        echo "3840x2160@59.997Hz normal 1"
+      fi ;;
+    "AOC Q27G1WG4 0x00014D8B")
+      echo "2560x1440@59.951Hz 90 1" ;;
+  esac
+}
+
+apply() {
+  local outputs name key mode tr sc mw mh mr w h t x s changed=0
+  outputs=$(swaymsg -t get_outputs)
+
+  declare -A KEY=()
+  local -a names=() sorted=()
+  while IFS=$'\t' read -r name _make _model _serial; do
+    KEY[$name]="$name"
+    for k in "${ORDER[@]}"; do
+      [[ "$k" == "$_make $_model $_serial" ]] && KEY[$name]="$k"
+    done
+    names+=("$name")
+  done < <(jq -r '.[] | select(.current_mode != null)
+                  | [.name,.make,.model,.serial] | @tsv' <<<"$outputs")
+
+  for k in "${ORDER[@]}"; do
+    for name in "${names[@]}"; do
+      [[ ${KEY[$name]} == "$k" ]] && sorted+=("$name")
+    done
+  done
+  for name in "${names[@]}"; do
+    [[ -z $(spec "${KEY[$name]}") ]] && sorted+=("$name")
+  done
+
+  x=0
+  for name in "${sorted[@]:-}"; do
+    [[ -n $name ]] || continue   # no outputs reported
+    key=${KEY[$name]}
+    if s=$(spec "$key") && [[ -n $s ]]; then
+      read -r mode tr sc <<<"$s"
+      mw=${mode%%[x@]*}
+      mh=$(sed -E 's/^[0-9]+x([0-9]+).*/\1/' <<<"$mode")
+      mr=$(sed -E 's/.*@([0-9.]+)Hz/\1/' <<<"$mode")
+      if [[ $(jq -e --arg n "$name" --argjson w "$mw" --argjson h "$mh" --argjson r "$mr" \
+              '.[]|select(.name==$n)|.current_mode
+                | (.width==$w and .height==$h
+                   and (((.refresh/1000)-$r)|if .<0 then -. else . end)<0.01)' \
+              <<<"$outputs") != true ]]; then
+        swaymsg output "$name" mode "$mode"; changed=1
+      fi
+      tr=${tr/none/normal}
+      if [[ $(jq -r --arg n "$name" '.[]|select(.name==$n).transform' <<<"$outputs") != "$tr" ]]; then
+        swaymsg output "$name" transform "${tr/normal/none}"; changed=1
+      fi
+      cur_sc=$(jq -r --arg n "$name" '.[]|select(.name==$n).scale' <<<"$outputs")
+      if ! awk -v a="$cur_sc" -v b="$sc" 'BEGIN{d=a-b; exit !(d<0?-d:d<0.001)}'; then
+        swaymsg output "$name" scale "$sc"; changed=1
+      fi
+      w=$mw; h=$mh
+      case $tr in 90|270) t=$w; w=$h; h=$t ;; esac
+    else
+      # Unknown monitor: keep its settings; rect is already logical.
+      w=$(jq -r --arg n "$name" '.[]|select(.name==$n).rect.width'  <<<"$outputs")
+      h=$(jq -r --arg n "$name" '.[]|select(.name==$n).rect.height' <<<"$outputs")
+    fi
+    if [[ $(jq -r --arg n "$name" '.[]|select(.name==$n)|"\(.rect.x) \(.rect.y)"' \
+          <<<"$outputs") != "$x 0" ]]; then
+      swaymsg output "$name" position "$x" 0; changed=1
+    fi
+    x=$(( x + w ))
+  done
+
+  # Wallpapers are per-monitor geometry; refresh them after any change.
+  if (( changed )); then
+    /home/kenny/bin/chwall >/dev/null 2>&1 || true
+  fi
+}
+
+if [[ "${1:-}" == --watch ]]; then
+  # Single-instance: stop the previous watcher via its pid file, covering
+  # orphaned subscribe children from crashed shells as well.
+  if [[ -r "$WATCHER_PID" ]] && old=$(cat "$WATCHER_PID" 2>/dev/null) && [[ -n $old ]] \
+      && kill -0 "$old" 2>/dev/null && [[ $old != $$ ]]; then
+    kill "$old" 2>/dev/null
+    sleep 0.3
+  fi
+  rm -f "$WATCHER_PID"
+  mkdir -p "$(dirname "$WATCHER_PID")"
+  printf '%s\n' "$$" >"$WATCHER_PID"
+  trap 'rm -f "$WATCHER_PID"' EXIT INT TERM
+  apply || true
+  # Drain one line at a time (not `read -r _` in a pipeline): the read is
+  # interruptible by signals, so SIGTERM/SIGINT are handled promptly even
+  # mid-loop, and the EXIT trap can clean up the pid file.
+  while :; do
+    IFS= read -r line || break
+    sleep 1   # let DP links settle before measuring
+    apply || true
+  done < <(swaymsg -t subscribe '["output"]')
+else
+  apply
+fi

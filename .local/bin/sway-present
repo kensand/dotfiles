@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# Toggle the Dell 4K between native 4K and rendered-2K (1440p downscaled by
+# the panel's scaler) for presenting. State lives where sway-apply-layout
+# reads it, so hotplug re-applies keep the chosen mode. Re-layout + chwall
+# happen inside sway-apply-layout.
+set -euo pipefail
+STATE="${XDG_CACHE_HOME:-$HOME/.cache}/sway-apply-layout/present"
+self="$(readlink -f "$0" 2>/dev/null || printf '%s' "$0")"
+apply="$(command -v sway-apply-layout || true)"
+[[ -x $apply || $apply == "" ]] && apply="$self"   # fall back to this script's dir
+dir=${apply%/*}
+name=$(swaymsg -t get_outputs | jq -r \
+  '.[] | select(.make=="Dell Inc." and .model=="DELL S3225QS" and .current_mode!=null) | .name')
+[[ -z "$name" ]] && { echo "Dell S3225QS not connected" >&2; exit 1; }
+
+h=$(swaymsg -t get_outputs | jq -r --arg n "$name" \
+  '.[] | select(.name==$n) | .current_mode.height')
+h=${h//[$'\t'\r]/}   # a missing field would leave this multi-line
+
+mkdir -p "$(dirname "$STATE")"
+if [[ "$h" == 2160 ]]; then
+  [[ -n $(cat "$STATE" 2>/dev/null) ]] && exit 0   # already in present mode
+  echo 2k >"$STATE"
+  msg="Dell $name: 4K -> 2K (presenting)"
+else
+  echo 4k >"$STATE"
+  msg="Dell $name: 2K -> 4K (native)"
+fi
+
+command -v notify-send >/dev/null && notify-send -t 3000 "Display" "$msg" || true
+"$dir/sway-apply-layout"

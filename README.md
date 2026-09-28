@@ -42,7 +42,7 @@ sudo -E bash ~/bin/setup.sh --dotfiles   # just pull dotfiles + submodules
 | `.config/fuzzel/` | App launcher |
 | `.config/way-displays/` | Display manager (external monitor layouts) |
 | `.config/systemd/user/` | User systemd services |
-| `.config/Daily-Reddit-Wallpaper/` | Holds the current wallpaper image |
+| `.cache/chwall/` | Holds the current wallpaper image (chwall cache) |
 | `.config/oh-my-zsh/` | Submodule — zsh framework |
 | `.local/share/konsole/` | Konsole terminal profiles |
 | `.zshrc`, `.zsh_aliases` | Zsh config |
