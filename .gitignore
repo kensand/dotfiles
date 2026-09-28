@@ -59,10 +59,5 @@
 !bin/*
 !bin/*/*
 bin/jetbrains-toolbox
-
-# sway layout/present helpers (referenced by absolute path in ~/.config/sway/config)
-!.local/bin/
-!.local/bin/sway-apply-layout
-!.local/bin/sway-present
 .vim/.netrwhist
 .cache/chwall/

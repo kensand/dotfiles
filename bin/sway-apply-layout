@@ -15,6 +15,7 @@ set -uo pipefail
 
 STATE="${XDG_CACHE_HOME:-$HOME/.cache}/sway-apply-layout/present"
 WATCHER_PID="${XDG_CACHE_HOME:-$HOME/.cache}/sway-apply-layout/watcher.pid"
+LOCK="${XDG_CACHE_HOME:-$HOME/.cache}/sway-apply-layout/lock"
 
 # Left-to-right order; unknown monitors are appended on the right.
 ORDER=(
@@ -39,7 +40,23 @@ spec() {  # key -> "mode transform scale"; empty = unknown monitor
   esac
 }
 
+# Serialize across one-shot and watcher applies: both mutate the same
+# outputs, and a keybinding-triggered one-shot (e.g. from sway-present)
+# racing a watcher re-apply would double-issue or mis-diff a mode change.
+# The fd is opened and closed inside this function only, so the lock is
+# held exactly for one apply and never leaked into the caller's loop.
+# $1 = 1 to skip the post-change wallpaper refresh (used by the watcher: a
+# reload-spawned watcher that runs chwall -> wal -> `swaymsg reload` would
+# respawn itself forever, an unbounded reload loop even with clean
+# single-instance). The watcher fixes geometry/mode; the wallpaper bg is
+# re-set by the one-shot/manual path (and by sway's own config on reload).
 apply() {
+  local skip_wallpaper="${1:-0}"
+  { flock -x 9; apply_locked "$skip_wallpaper"; } 9>"$LOCK"
+}
+
+apply_locked() {
+  local skip_wallpaper="${1:-0}"
   local outputs name key mode tr sc mw mh mr w h t x s changed=0
   outputs=$(swaymsg -t get_outputs)
 
@@ -101,33 +118,50 @@ apply() {
     x=$(( x + w ))
   done
 
-  # Wallpapers are per-monitor geometry; refresh them after any change.
-  if (( changed )); then
-    /home/kenny/bin/chwall >/dev/null 2>&1 || true
+  # Wallpapers are per-monitor geometry; refresh them after a real change.
+  # --refresh is network-free (just re-sets the bg from the cached image). We
+  # skip this from the watcher: chwall's path can trigger a sway reload, and a
+  # reload-spawned watcher running chwall would respawn itself in a loop.
+  if (( changed )) && (( ! skip_wallpaper )); then
+    /home/kenny/bin/chwall --refresh >/dev/null 2>&1 || true
   fi
 }
 
 if [[ "${1:-}" == --watch ]]; then
-  # Single-instance: stop the previous watcher via its pid file, covering
-  # orphaned subscribe children from crashed shells as well.
+  # Single-instance: stop the previous watcher via its pid file. SIGTERM is
+  # ignored by a bash blocked in do_wait (our normal idle state), so use
+  # SIGKILL on the whole process group to actually reap the old watcher and
+  # its subscribe child.
   if [[ -r "$WATCHER_PID" ]] && old=$(cat "$WATCHER_PID" 2>/dev/null) && [[ -n $old ]] \
       && kill -0 "$old" 2>/dev/null && [[ $old != $$ ]]; then
-    kill "$old" 2>/dev/null
+    kill -9 -- "-$old" 2>/dev/null   # process group
+    kill -9 "$old" 2>/dev/null        # and the pid itself, in case
     sleep 0.3
   fi
   rm -f "$WATCHER_PID"
   mkdir -p "$(dirname "$WATCHER_PID")"
   printf '%s\n' "$$" >"$WATCHER_PID"
   trap 'rm -f "$WATCHER_PID"' EXIT INT TERM
-  apply || true
-  # Drain one line at a time (not `read -r _` in a pipeline): the read is
-  # interruptible by signals, so SIGTERM/SIGINT are handled promptly even
-  # mid-loop, and the EXIT trap can clean up the pid file.
+  # Skip the wallpaper refresh in the watcher (see apply() note) to break the
+  # chwall -> reload -> respawn loop.
+  apply 1 || true
+  # Drain output events. Note: applying an output command (e.g. chwall's
+  # `swaymsg output * bg`, a mode change) can drop the subscribe IPC socket,
+  # closing this pipe. So we run the subscribe in an outer loop and restart
+  # it if it comes back empty/dead, instead of letting the watcher exit on
+  # EOF. Coalesce a burst of events (a hotplug emits several) into one apply.
   while :; do
-    IFS= read -r line || break
-    sleep 1   # let DP links settle before measuring
-    apply || true
-  done < <(swaymsg -t subscribe '["output"]')
+    got_event=0
+    while :; do
+      IFS= read -r line || break   # pipe closed -> restart subscribe below
+      got_event=1
+      while IFS= read -r -t 1 _; do :; done
+    done < <(swaymsg -t subscribe '["output"]')
+    (( got_event )) && apply 1 || true
+    # If the subscribe died without a single event (dropped socket), just
+    # re-subscribe; a brief pause avoids a tight restart loop.
+    sleep 0.5
+  done
 else
   apply
 fi

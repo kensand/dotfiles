@@ -20,14 +20,14 @@ bar {
   hidden_state hide
 }
 
-# Layout is computed dynamically by ~/.local/bin/sway-apply-layout
+# Layout is computed dynamically by ~/bin/sway-apply-layout
 # (monitors matched by make/model/serial; re-applied on every hotplug event).
 output * adaptive_sync off
-exec_always /home/kenny/.local/bin/sway-apply-layout
-exec_always /home/kenny/.local/bin/sway-apply-layout --watch
+exec_always /home/kenny/bin/sway-apply-layout
+exec_always /home/kenny/bin/sway-apply-layout --watch
 
 # Toggle Dell 4K <-> presented 2K (re-layouts + chwall automatically)
-bindsym Ctrl+$mod+Shift+s exec /home/kenny/.local/bin/sway-present
+bindsym Ctrl+$mod+Shift+s exec /home/kenny/bin/sway-present
 
 default_border pixel 10
 hide_edge_borders smart

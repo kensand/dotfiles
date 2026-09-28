@@ -19,13 +19,18 @@ h=${h//[$'\t'\r]/}   # a missing field would leave this multi-line
 
 mkdir -p "$(dirname "$STATE")"
 if [[ "$h" == 2160 ]]; then
-  [[ -n $(cat "$STATE" 2>/dev/null) ]] && exit 0   # already in present mode
+  [[ $(cat "$STATE" 2>/dev/null) == 2k ]] && exit 0   # already in present mode
   echo 2k >"$STATE"
   msg="Dell $name: 4K -> 2K (presenting)"
 else
+  [[ $(cat "$STATE" 2>/dev/null) == 4k ]] && exit 0   # already at native
   echo 4k >"$STATE"
   msg="Dell $name: 2K -> 4K (native)"
 fi
 
 command -v notify-send >/dev/null && notify-send -t 3000 "Display" "$msg" || true
-"$dir/sway-apply-layout"
+# Re-layout async: this runs from a sway keybinding (exec), and blocking on
+# the layout apply here could stall if the watcher is mid-apply. The one-shot
+# flocks anyway, so ordering against a concurrent watcher is already safe.
+setsid "$dir/sway-apply-layout" >/dev/null 2>&1 &
+disown

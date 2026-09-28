@@ -9,46 +9,88 @@
 #   4. Run wal on the image to regenerate the color scheme
 #   5. Set the Sway wallpaper
 #
-# Usage: chwall [subreddit]
-#   defaults to the sub listed in $CHWALL_SUB (or "earthporn")
+# Usage: chwall [subreddit]    fetch + apply a new daily wallpaper
+#        chwall --refresh      re-apply the cached wallpaper (no network); this
+#                              is what sway-apply-layout calls after a mode change
+#        chwall --refresh [subreddit]   re-apply; subreddit is ignored unless
+#                              the cached image is missing, in which case it fetches
 
 set -euo pipefail
 
-SUB="${1:-${CHWALL_SUB:-earthporn}}"
+REFRESH_ONLY=0
+SUB="${CHWALL_SUB:-earthporn}"
+if [[ "${1:-}" == "--refresh" ]]; then
+	REFRESH_ONLY=1
+	SUB="${2:-$SUB}"
+else
+	SUB="${1:-$SUB}"
+fi
 UA="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 DIR="$HOME/.cache/chwall"
 OUT="$DIR/current.jpg"
 WAL_CACHE="$HOME/.cache/wal"
+# One image per day (subreddit + date). A re-run the same day (e.g. triggered
+# by a sway-apply-layout mode change) reuses the cached image instead of
+# hitting reddit again; a new day (or different sub) fetches fresh.
+DAY="$(date +%Y-%m-%d)"
+DAY_KEY="$SUB/$DAY"
+DAY_DIR="$DIR/$DAY_KEY"
+DAY_OUT="$DAY_DIR/image.jpg"
 
 # Make sure we have somewhere to put the image
-mkdir -p "$DIR" "$WAL_CACHE/schemes"
+mkdir -p "$DIR" "$WAL_CACHE/schemes" "$DAY_DIR"
+
+# --refresh: no network, no wal. A mode change only invalidates the per-
+# monitor wallpaper geometry, so we just re-set the background from the
+# existing image. We deliberately do NOT run wal here: wal auto-fires
+# `swaymsg reload` (pywal reload.py), which re-runs the sway config and would
+# respawn the layout watcher on every call. Re-coloring only happens on a
+# real fetch (a new wallpaper).
+if (( REFRESH_ONLY )); then
+	if [[ -s "$OUT" ]]; then
+		echo "==> Re-setting wallpaper (no fetch, no recolor)..."
+		swaymsg output '*' bg "$OUT" fill
+		echo "Done."
+		exit 0
+	fi
+	# No cached image yet: fall through to a full fetch + theme below.
+fi
 
 fetch() {
 	local url="$1" dest="$2"
-	# Retry a couple times; reddit rate-limits aggressively
-	local attempt code
+	# Retry a couple times; reddit rate-limits aggressively. Each attempt is
+	# hard-capped so a hung/rate-limited network can't wedge the caller.
+	local attempt code max_wait="${CHWALL_FETCH_WAIT:-20}"
 	for attempt in 1 2 3; do
-		code=$(curl -s -A "$UA" -H "Referer: https://www.reddit.com/" \
+		code=$(curl -s --max-time "$max_wait" -A "$UA" -H "Referer: https://www.reddit.com/" \
 			-o "$dest" -w "%{http_code}" "$url" 2>/dev/null || echo "000")
 		if [[ "$code" == "200" ]] && [[ -s "$dest" ]]; then
 			return 0
 		fi
-		echo "  retry $attempt for $(basename "$url") (HTTP $code), waiting..." >&2
-		sleep $((attempt * 15))
+		if (( attempt < 3 )); then
+			echo "  retry $attempt for $url (HTTP $code), waiting..." >&2
+			sleep $((attempt * 5))
+		fi
 	done
 	return 1
 }
 
-# 1. Fetch the top-of-day RSS feed
-echo "==> Fetching top of day from r/$SUB..."
-feed=$(mktemp)
-fetch "https://www.reddit.com/r/$SUB/top/.rss?t=day&limit=10" "$feed" || {
-	echo "ERROR: could not fetch RSS feed from r/$SUB" >&2
-	exit 1
-}
+# Already fetched today? Skip the reddit round-trip entirely and just re-theme.
+if [[ -s "$DAY_OUT" ]]; then
+	echo "==> Using today's cached wallpaper (r/$SUB)..."
+	cp -f "$DAY_OUT" "$OUT"
+else
+	# 1. Fetch the top-of-day RSS feed
+	echo "==> Fetching top of day from r/$SUB..."
+	feed=$(mktemp)
+	fetch "https://www.reddit.com/r/$SUB/top/.rss?t=day&limit=10" "$feed" || {
+		echo "ERROR: could not fetch RSS feed from r/$SUB" >&2
+		rm -f "$feed"
+		exit 1
+	}
 
-# 2. Find the first post with a thumbnail and extract its image hash
-hash=$(python3 - "$feed" <<'PY'
+	# 2. Find the first post with a thumbnail and extract its image hash
+	hash=$(python3 - "$feed" <<'PY'
 import sys, xml.etree.ElementTree as ET
 ns = {'atom': 'http://www.w3.org/2005/Atom'}
 root = ET.parse(sys.argv[1]).getroot()
@@ -63,26 +105,31 @@ for entry in root.findall('atom:entry', ns):
     # some posts have media:content but no thumbnail; skip
 sys.exit(1)
 PY
-) || {
-	echo "ERROR: no thumbnail found in feed" >&2
+	) || {
+		echo "ERROR: no thumbnail found in feed" >&2
+		rm -f "$feed"
+		exit 1
+	}
 	rm -f "$feed"
-	exit 1
-}
-rm -f "$feed"
-echo "  image hash: $hash"
+	echo "  image hash: $hash"
 
-# 3. Download the full-res original
-echo "==> Downloading full-res wallpaper..."
-fetch "https://i.redd.it/$hash.jpeg" "$OUT" || {
-	echo "ERROR: could not download wallpaper (hash: $hash)" >&2
-	exit 1
-}
-echo "  saved to $OUT"
+	# 3. Download the full-res original (keep a per-day copy for reuse)
+	echo "==> Downloading full-res wallpaper..."
+	fetch "https://i.redd.it/$hash.jpeg" "$DAY_OUT" || {
+		echo "ERROR: could not download wallpaper (hash: $hash)" >&2
+		exit 1
+	}
+	echo "  saved to $DAY_OUT"
+	cp -f "$DAY_OUT" "$OUT"
+fi
 
-# 4. Regenerate the wal color scheme
+# 4. Regenerate the wal color scheme. wal fires `swaymsg reload` after this
+# (pywal reload.py) so that sway re-reads `include ~/.cache/wal/colors-sway`
+# (see sway config) and picks up the new palette. We rely on that reload; the
+# layout watcher is reload-safe (single-instance via SIGKILL handoff), so a
+# reload-spawned watcher cleanly replaces the old one rather than piling up.
 echo "==> Generating color scheme with wal..."
 rm -f "$WAL_CACHE/schemes"/* 2>/dev/null || true
-cat "$WAL_CACHE/sequences" &
 wal -i "$OUT" >/dev/null
 
 # 5. Set the Sway wallpaper
