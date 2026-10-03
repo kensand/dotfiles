@@ -1,0 +1,47 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# ~/.zshrc.local — machine-specific zsh, sourced last by tty/zshrc
+#
+# Copy this to ~/.zshrc.local on a machine and it takes over for everything that
+# belongs to that machine alone. tty/zshrc stays clean and update-safe; this file
+# is not tracked by git, so edits here never conflict with a self-update and
+# never get pushed onto a different machine.
+#
+# It is sourced after oh-my-zsh, so you can override theme and plugins here, and
+# it can assume $HOME/bin is already on PATH.
+#
+# The example below is the framework-13 laptop: nvm, deno, the Android SDK, and
+# the old alias file.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Theme / plugins for this machine only (tty/zshrc loads robbyrussell + git).
+# ZSH_THEME="gallois"
+# source "$ZSH/oh-my-zsh.sh"   # re-source if you change plugins after the fact
+
+# ── node via nvm (Arch ships the init script; other hosts use ~/.nvm) ────────
+if [[ -f /usr/share/nvm/init-nvm.sh ]]; then
+	source /usr/share/nvm/init-nvm.sh
+elif [[ -f "$HOME/.nvm/nvm.sh" ]]; then
+	export NVM_DIR="$HOME/.nvm"
+	# shellcheck disable=SC1091
+	source "$NVM_DIR/nvm.sh"
+fi
+
+# ── deno ────────────────────────────────────────────────────────────────────
+[[ -f "$HOME/.deno/env" ]] && source "$HOME/.deno/env"
+
+# ── Android SDK + JetBrains Toolbox ──────────────────────────────────────────
+if [[ -d /opt/android-sdk ]]; then
+	export ANDROID_HOME=/opt/android-sdk
+	export PATH="$PATH:$ANDROID_HOME/emulator:$ANDROID_HOME/tools:$ANDROID_HOME/tools/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/cmdline-tools/latest/bin"
+fi
+[[ -d "$HOME/.local/share/JetBrains/Toolbox/scripts" ]] &&
+	export PATH="$PATH:$HOME/.local/share/JetBrains/Toolbox/scripts"
+
+# ── per-machine aliases ─────────────────────────────────────────────────────
+[[ -f "$HOME/.zsh_aliases" ]] && source "$HOME/.zsh_aliases"
+
+# ── knob examples for the shared config ──────────────────────────────────────
+# DOTFILES_TMUX_AUTOATTACH=0    # no tmux on login to this host
+# DOTFILES_UPDATE_DISABLE=1     # never touch this checkout
+# DOTFILES_UPDATE_MODE=notify   # fetch and report, but do not fast-forward
+# DOTFILES_UPDATE_DAYS=30

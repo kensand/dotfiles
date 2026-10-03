@@ -19,6 +19,16 @@
 !.config/
 !.config/oh-my-zsh
 
+# Headless / TTY bundle: the zsh + tmux configs bin/setup-tty.sh installs on
+# SSH-only hosts. The desktop's ~/.zshrc is a one-line shim onto tty/zshrc, so
+# this directory is shared by both layouts.
+!tty/
+!tty/**
+
+# Machine-specific shell overrides, deliberately NOT tracked: toolchain paths
+# differ per host. tty/zshrc.local.example is the documented template.
+.zshrc.local
+
 # Sway / Wayland
 !.config/sway
 !.config/sway/**

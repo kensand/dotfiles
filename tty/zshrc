@@ -1,0 +1,120 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# dotfiles :: tty — zsh for TTY / SSH sessions
+#
+# Installed as ~/.zshrc by bin/setup-tty.sh (symlink; --copy for a plain copy).
+# The same file runs on the desktop, where this repo *is* $HOME, and on headless
+# hosts, where the installer sparse-clones it to ~/.dotfiles.
+#
+# Deliberately default-by-design: stock oh-my-zsh theme and plugins, no absolute
+# home paths, and nothing that assumes a display server, a GPU, a font, or an
+# Arch package. Machine-specific lines belong in ~/.zshrc.local (sourced at the
+# bottom, never tracked by git) — that is where the desktop keeps nvm, deno,
+# Android SDK paths and friends.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# scp / rsync / `ssh host cmd` / scripts: stay completely out of the way.
+[[ -o interactive ]] || return
+
+# ── where this config came from ──────────────────────────────────────────────
+# Repo that holds tty/: $HOME on the desktop, ~/.dotfiles on a headless host.
+# Probed rather than hardcoded so a copied (non-symlinked) install still works.
+if [[ -z "$DOTFILES_ROOT" ]]; then
+	for _dir in "$HOME/.dotfiles" "$HOME"; do
+		[[ -f "$_dir/tty/zshrc" ]] && {
+			DOTFILES_ROOT="$_dir"
+			break
+		}
+	done
+fi
+
+# ── TTY essentials ───────────────────────────────────────────────────────────
+# -U keeps PATH free of duplicates, which matters because every nested tmux pane
+# and ssh hop would otherwise append the same directories again.
+typeset -U PATH path
+export PATH="$HOME/bin:$HOME/.local/bin:/usr/local/bin:$PATH"
+
+if [[ -z "$EDITOR" ]]; then
+	for _ed in vim nvim vi nano; do
+		command -v "$_ed" >/dev/null 2>&1 && {
+			export EDITOR="$_ed"
+			break
+		}
+	done
+fi
+
+export LESS='-R' # pass colours through less instead of literalising them
+
+# ESC latency. tmux fixes its own escape-time; this fixes the shell side, which
+# is what makes vim feel laggy over a slow link. The zsh default is 400ms.
+KEYTIMEOUT=1
+
+# No `export TERM=...` here on purpose: forcing a value lies about where you
+# actually connected from and costs you 256-colour/truecolour in tmux and vim.
+
+# ── reattach to tmux on SSH logins ───────────────────────────────────────────
+# Placed before the (comparatively slow) oh-my-zsh load because it execs away.
+# -A means "attach if the session exists, else create it", so reconnecting lands
+# back where you were and a dropped link costs you nothing.
+#
+# Skipped when: already inside tmux ($TMUX) or screen ($STY), TERM=dumb (emacs
+# tramp, some IDE terminals), a forced command ($SSH_ORIGINAL_COMMAND), or tmux
+# is not installed. Opt out with DOTFILES_TMUX_AUTOATTACH=0.
+if [[ -n "$SSH_TTY" && -z "$TMUX" && -z "$STY" && "$TERM" != dumb
+	&& -z "$SSH_ORIGINAL_COMMAND" && "${DOTFILES_TMUX_AUTOATTACH:-1}" == 1 ]] &&
+	command -v tmux >/dev/null 2>&1; then
+	exec tmux new-session -As ssh
+fi
+
+# ── oh-my-zsh ────────────────────────────────────────────────────────────────
+# First match wins: ~/.oh-my-zsh (upstream layout, what bin/setup-tty.sh
+# creates), then the pinned submodule, then the distro package.
+for _dir in "$HOME/.oh-my-zsh" "$HOME/.config/oh-my-zsh" /usr/share/oh-my-zsh; do
+	[[ -f "$_dir/oh-my-zsh.sh" ]] && {
+		export ZSH="$_dir"
+		break
+	}
+done
+
+# Defaults, not orders: oh-my-zsh reads both before sourcing. Set ZSH_THEME or
+# plugins in ~/.zshenv (read before .zshrc, including by non-interactive shells)
+# to override without editing this file — that is how the desktop keeps extra
+# plugins like web-search without forking the shared config.
+: ${ZSH_THEME:=robbyrussell} # oh-my-zsh default
+(( ${#plugins[@]} == 0 )) && plugins=(git history-substring-search)
+
+# Check for oh-my-zsh updates at startup and apply them in the background, at
+# most every 13 days (see also the dotfiles check further down).
+# DOTFILES_UPDATE_DISABLE=1 silences both; DOTFILES_UPDATE_DAYS retunes them.
+if [[ "${DOTFILES_UPDATE_DISABLE:-0}" != 1 ]]; then
+	zstyle ':omz:update' mode auto
+	zstyle ':omz:update' frequency "${DOTFILES_UPDATE_DAYS:-13}"
+fi
+
+if [[ -n "$ZSH" ]]; then
+	source "$ZSH/oh-my-zsh.sh"
+else
+	# Bare fallback: a host that has zsh but no oh-my-zsh yet still gets
+	# completion and a prompt naming the machine you are on.
+	print -u2 "dotfiles: oh-my-zsh not found (run bin/setup-tty.sh); using plain zsh"
+	autoload -Uz compinit && compinit -u
+	PROMPT='%m %~ %# '
+fi
+
+# ── self-update (same route as oh-my-zsh: cooldown, then backgrounded) ───────
+_cache="${XDG_CACHE_HOME:-$HOME/.cache}/dotfiles-tty"
+
+# One line from the last background update, so you hear about it exactly once.
+if [[ -f "$_cache/notice" ]]; then
+	command cat "$_cache/notice" >&2
+	command rm -f "$_cache/notice"
+fi
+
+if [[ "${DOTFILES_UPDATE_DISABLE:-0}" != 1 && -n "$DOTFILES_ROOT" &&
+	-f "$DOTFILES_ROOT/tty/update.sh" ]]; then
+	("$DOTFILES_ROOT/tty/update.sh" check </dev/null >/dev/null 2>&1 &)
+fi
+
+unset _dir _ed _cache
+
+# ── machine-specific overrides (untracked, git-ignored by design) ────────────
+[[ -f "$HOME/.zshrc.local" ]] && source "$HOME/.zshrc.local"

@@ -1,0 +1,246 @@
+#!/bin/bash
+# ─────────────────────────────────────────────────────────────────────────────
+# tty-push — install the tty/ bundle on another machine, from here.
+#
+# One command turns a host you can SSH into into a machine with your zsh and
+# tmux on it:
+#
+#   bin/tty-push root@10.0.0.7
+#   bin/tty-push kenny@box.example -p 2222
+#   bin/tty-push user@host --no-packages          # configs only, no root needed
+#   bin/tty-push user@host --tailscale            # + install/enable tailscaled
+#   bin/tty-push user@host --dry-run              # show every remote command
+#   bin/tty-push user@host --bundle               # force the offline copy
+#   bin/tty-push user@host -- --no-chsh --copy    # anything else setup-tty takes
+#
+# How it works:
+#   1. tar tty/ + bin/setup-tty.sh over SSH into ~/.dotfiles-tty-bundle on the
+#      target. All the target needs is a POSIX shell and tar — no curl, no git,
+#      no GitHub access, so it works on an air-gapped or barely-bootstrapped box.
+#      (If even bash is missing, as on a bare Alpine image, it is installed
+#      first, because the installer itself is a bash script.)
+#   2. Ask the target whether it can reach the dotfiles repo over its own git.
+#      If yes, setup-tty.sh sparse-clones the repo instead of using the bundle:
+#      that is what makes the 13-day self-update work there. If no, it installs
+#      from the bundle and tells you updates are off.
+#   3. Run setup-tty.sh, then re-check the result from the outside: does
+#      ~/.zshrc parse, is tmux present, what is the login shell now.
+#
+# Anything after -- is passed to setup-tty.sh verbatim.
+#
+# Host keys: your own ~/.ssh/config wins, so a first connection to a new host
+# needs a terminal to answer 'yes'. Running tty-push from a script or CI has no
+# terminal, so pass --accept-new to trust-on-first-use (changed keys still stop
+# you). Clear a genuinely changed key with: ssh-keygen -R '[host]:port'.
+# ─────────────────────────────────────────────────────────────────────────────
+set -euo pipefail
+
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)
+REPO_ROOT=$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null || dirname "$SCRIPT_DIR")
+GUESS_BRANCH=$(git -C "$SCRIPT_DIR" rev-parse --abbrev-ref HEAD 2>/dev/null || true)
+[[ "$GUESS_BRANCH" == "HEAD" || -z "$GUESS_BRANCH" ]] && GUESS_BRANCH=""
+
+# Anonymous clone URL. Prefer the public mirror, then rewrite an ssh remote into
+# https — the target host is not going to have your key.
+repo_url() {
+	local url=""
+	for name in github origin; do
+		url=$(git -C "$REPO_ROOT" remote get-url "$name" 2>/dev/null || true)
+		[[ -n "$url" ]] && break
+	done
+	[[ -n "$url" ]] || url="https://github.com/kensand/dotfiles.git"
+	case "$url" in
+	git@github.com:*) echo "https://github.com/${url#git@github.com:}" ;;
+	ssh://git@github.com/*) echo "https://github.com/${url#ssh://git@github.com/}" ;;
+	*) echo "$url" ;;
+	esac
+}
+
+REPO_URL="${DOTFILES_REPO_URL:-$(repo_url)}"
+BRANCH="${DOTFILES_BRANCH:-$(repo_url >/dev/null; echo "${GUESS_BRANCH:-}")}"
+BUNDLE_NAME=".dotfiles-tty-bundle"
+
+HOST=""
+SSH_PORT=""
+SSH_OPTS=()
+DRY=false
+FORCE_BUNDLE=false
+ACCEPT_NEW=false
+REMOTE_ARGS=()
+
+info() { echo "==> $1"; }
+warn() { echo "==> WARNING: $1"; }
+die() {
+	echo "==> ERROR: $1" >&2
+	exit 1
+}
+
+# Quote an array for embedding in a remote shell command string.
+shell_quote_join() {
+	local out="" a
+	for a in "$@"; do out+=" $(printf '%q' "$a")"; done
+	printf '%s' "$out"
+}
+
+# Local command, honouring --dry-run.
+lrun() {
+	if $DRY; then printf '  [dry] %s\n' "$*"; return 0; fi
+	"$@"
+}
+
+# Remote shell command (single string, executed by the target's login shell).
+rsh() {
+	local cmd="$1"
+	if $DRY; then
+		printf '  [dry] ssh %s %s -- %s\n' "${SSH_OPTS[*]}" "$HOST" "$cmd"
+		return 0
+	fi
+	ssh "${SSH_OPTS[@]}" "$HOST" "$cmd"
+}
+
+while [[ $# -gt 0 ]]; do
+	case "$1" in
+	-h | --help)
+		sed -n '2,/^# ─*$/p' "${BASH_SOURCE[0]}" | sed '1d;s/^# \{0,1\}//'
+		exit 0
+		;;
+	-n | --dry-run)
+		DRY=true
+		REMOTE_ARGS+=(--dry-run)
+		;;
+	-p | --port)
+		[[ -n "${2:-}" ]] || die "$1 needs a port"
+		SSH_PORT="$2"
+		shift
+		;;
+	-i | --identity)
+		[[ -n "${2:-}" ]] || die "$1 needs a key file"
+		SSH_OPTS+=(-i "$2")
+		shift
+		;;
+	--bundle) FORCE_BUNDLE=true ;;
+	--accept-new) ACCEPT_NEW=true ;;
+	--branch)
+		[[ -n "${2:-}" ]] || die "$1 needs a branch name"
+		BRANCH="$2"
+		REMOTE_ARGS+=(--branch "$2")
+		shift
+		;;
+	--repo-url)
+		[[ -n "${2:-}" ]] || die "$1 needs a URL"
+		REPO_URL="$2"
+		REMOTE_ARGS+=(--repo-url "$2")
+		shift
+		;;
+	--)
+		shift
+		while [[ $# -gt 0 ]]; do REMOTE_ARGS+=("$1"); shift; done
+		break
+		;;
+	-*)
+		# Flags the remote installer knows about are forwarded untouched.
+		REMOTE_ARGS+=("$1")
+		;;
+	*)
+		[[ -z "$HOST" ]] || die "more than one target given: $HOST and $1"
+		HOST="$1"
+		;;
+	esac
+	shift
+done
+
+[[ -n "$HOST" ]] || die "no target. usage: tty-push [user@]host [-- setup-tty.sh args]"
+[[ -n "$SSH_PORT" ]] && SSH_OPTS+=(-p "$SSH_PORT")
+# Never sit on a host-key question in a script, but do not disable checking.
+SSH_OPTS+=(-o "ConnectTimeout=10")
+$ACCEPT_NEW && SSH_OPTS+=(-o StrictHostKeyChecking=accept-new)
+
+# ── 1. is it there, and can we get in? ───────────────────────────────────────
+info "checking ssh access to $HOST"
+if ! $DRY && ! ssh "${SSH_OPTS[@]}" "$HOST" 'echo ok >/dev/null' 2>/dev/null; then
+	echo "    try it by hand first: ssh ${SSH_OPTS[*]:-} $HOST" >&2
+	$ACCEPT_NEW ||
+		echo "    if the host key is simply unknown, rerun with --accept-new; if it changed: ssh-keygen -R '$HOST'" >&2
+	die "cannot ssh to $HOST"
+fi
+
+remote_os=$(rsh 'sh -c "(. /etc/os-release 2>/dev/null && echo \${PRETTY_NAME:-\$ID}) || echo unknown"' 2>/dev/null || echo "unknown")
+info "target: ${remote_os}"
+
+# ── 1b. the installer is bash; some base images (Alpine) have no bash ────────
+if ! $DRY && ! rsh 'command -v bash >/dev/null 2>&1'; then
+	info "target has no bash — installing it first (setup-tty.sh is a bash script)"
+	install_bash='if command -v apk >/dev/null 2>&1; then apk add --no-cache bash
+		elif command -v apt-get >/dev/null 2>&1; then apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq bash
+		elif command -v dnf >/dev/null 2>&1; then dnf install -y -q bash
+		elif command -v yum >/dev/null 2>&1; then yum install -y -q bash
+		elif command -v zypper >/dev/null 2>&1; then zypper --non-interactive install bash
+		elif command -v pacman >/dev/null 2>&1; then pacman -Sy --noconfirm --needed bash
+		else echo "no known package manager" >&2; exit 9; fi'
+	if ! rsh "$install_bash" >/dev/null 2>&1 && ! rsh "sudo -n sh -c '$install_bash'" >/dev/null 2>&1; then
+		die "the target needs bash and you are not root there. Run it by hand (apk add bash / apt-get install bash), then retry."
+	fi
+	info "bash installed"
+fi
+
+# ── 2. ship the bundle (tty/ + the installer) ────────────────────────────────
+[[ -d "$REPO_ROOT/tty" ]] || die "$REPO_ROOT/tty not found — run this from your dotfiles repo"
+info "sending tty/ + setup-tty.sh to $HOST:~/$BUNDLE_NAME"
+if $DRY; then
+	printf '  [dry] tar -C %s -cf - tty bin/setup-tty.sh | ssh %s %s -- "tar -C \$HOME/%s -xf -"\n' \
+		"$REPO_ROOT" "${SSH_OPTS[*]}" "$HOST" "$BUNDLE_NAME"
+else
+	ssh "${SSH_OPTS[@]}" "$HOST" \
+		"rm -rf \"\$HOME/$BUNDLE_NAME\" && mkdir -p \"\$HOME/$BUNDLE_NAME\" && tar -C \"\$HOME/$BUNDLE_NAME\" -xf -" \
+		< <(tar -C "$REPO_ROOT" -cf - tty bin/setup-tty.sh) ||
+		die "could not copy the bundle (does the target have tar?)"
+fi
+
+# ── 3. can the target clone the repo itself? (that is what enables updates) ───
+mode="bundle"
+if $FORCE_BUNDLE; then
+	info "installing from the bundle (--bundle); self-update will be off"
+else
+	info "can $HOST reach $REPO_URL${BRANCH:+ ($BRANCH)} on its own?"
+	probe="command -v git >/dev/null 2>&1 || exit 3; timeout 25 git ls-remote --heads '$REPO_URL' ${BRANCH:+"$BRANCH"} >/dev/null 2>&1 || exit 4"
+	if $DRY; then
+		printf '  [dry] probe: %s\n' "$probe"
+		mode="clone (probe result unknown in a dry run)"
+	elif rsh "$probe" >/dev/null 2>&1; then
+		mode="clone"
+		info "yes — it will sparse-clone the repo, so the 13-day self-update works"
+		REMOTE_ARGS+=(--repo-url "$REPO_URL")
+		[[ -n "$BRANCH" ]] && REMOTE_ARGS+=(--branch "$BRANCH")
+	else
+		info "no — installing from the bundle (updates will be off on that host)"
+		REMOTE_ARGS+=(--source "\$HOME/$BUNDLE_NAME")
+	fi
+fi
+
+# ── 4. install ───────────────────────────────────────────────────────────────
+info "running setup-tty.sh on $HOST (mode: $mode)"
+# -t so sudo/chsh can ask for a password through this connection.
+install_cmd="bash \"\$HOME/$BUNDLE_NAME/bin/setup-tty.sh\"$(shell_quote_join "${REMOTE_ARGS[@]}")"
+if ! $DRY; then
+	if ! ssh -t "${SSH_OPTS[@]}" "$HOST" "$install_cmd"; then
+		die "setup-tty.sh failed on $HOST — rerun with --no-packages to retry configs only"
+	fi
+fi
+
+# ── 5. verify from the outside ───────────────────────────────────────────────
+if ! $DRY; then
+	info "verifying"
+	rsh 'sh -c "
+		printf \"  login shell : %s\n\" \"\$(getent passwd \"\$USER\" | cut -d: -f7)\"
+		printf \"  zsh         : %s\n\" \"\$(command -v zsh || echo MISSING)\"
+		printf \"  tmux        : %s\n\" \"\$(tmux -V 2>/dev/null || echo MISSING)\"
+		printf \"  ~/.zshrc    : %s\n\" \"\$(command -v zsh >/dev/null && zsh -n \$HOME/.zshrc 2>&1 && echo parses || echo MISSING)\"
+		printf \"  ~/.tmux.conf: %s\n\" \"\$(test -e \$HOME/.tmux.conf && echo present || echo MISSING)\"
+	"' || warn "verification step failed"
+	echo ""
+	info "try it: ssh $HOST"
+	info "SSH logins attach to tmux session 'ssh'; Ctrl-b d detaches, reconnect reattaches."
+	info "no tmux wanted on this host? ssh $HOST \"echo DOTFILES_TMUX_AUTOATTACH=0 >> ~/.zshrc.local\""
+else
+	info "dry run: nothing was changed on $HOST"
+fi
