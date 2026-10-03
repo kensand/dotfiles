@@ -445,24 +445,48 @@ if $DO_DOTFILES; then
 			DOTFILES_ROOT="$DOTDIR"
 			MODE=clone
 		else
-			info "cloning ${BRANCH:+$BRANCH of }$REPO_URL (sparse: tty only)..."
-			# --filter + --sparse keep the desktop's 40 MB of committed binaries out
-			# of the checkout. Non-cone patterns, because cone mode can only take a
-			# whole directory and bin/ is exactly the part we do not want. Both need a
-			# reasonably modern git, so fall back to a plain shallow clone rather than
-			# failing the whole setup.
-			clone_args=(--quiet --depth 1 --filter=blob:none --no-checkout)
-			[[ -n "$BRANCH" ]] && clone_args+=(--branch "$BRANCH")
-			if ! run as_user git clone "${clone_args[@]}" "$REPO_URL" "$DOTDIR" ||
-				! run as_user git -C "$DOTDIR" sparse-checkout set --no-cone '/tty/' '/bin/setup-tty.sh' ||
-				! run as_user git -C "$DOTDIR" checkout --quiet; then
-				warn "sparse clone failed (git too old, $REPO_URL unreachable, or branch ${BRANCH:-<default>} is not on it); retrying as a plain shallow clone"
+			# Which branch? --branch / DOTFILES_BRANCH, then main, then master, then
+			# the remote's default. The default is tried LAST on purpose: on a repo
+			# whose HEAD still points at an old branch name it hands back a tree with
+			# no tty/ at all, and that failure is invisible until a shell starts up
+			# broken. Each candidate is checked for tty/zshrc before it is accepted.
+			cands=()
+			[[ -n "$BRANCH" ]] && cands+=("$BRANCH")
+			cands+=(main master "")
+			for try_branch in "${cands[@]}"; do
+				label="$try_branch"
+				[[ -n "$label" ]] || label="<remote default>"
+				info "cloning $label of $REPO_URL (sparse: tty + this script only)..."
 				run rm -rf "$DOTDIR"
-				plain=(--quiet --depth 1)
-				[[ -n "$BRANCH" ]] && plain+=(--branch "$BRANCH")
-				run as_user git clone "${plain[@]}" "$REPO_URL" "$DOTDIR" ||
-					die "cannot clone $REPO_URL — pass --source DIR to install from a bundle instead"
-			fi
+				# --filter + --sparse keep the desktop's 40 MB of committed binaries out
+				# of the checkout. Non-cone patterns, because cone mode can only take a
+				# whole directory and bin/ is exactly the part we do not want. Both need
+				# a reasonably modern git, so fall back to a plain shallow clone.
+				clone_args=(--quiet --depth 1 --filter=blob:none --no-checkout)
+				plain_args=(--quiet --depth 1)
+				if [[ -n "$try_branch" ]]; then
+					clone_args+=(--branch "$try_branch")
+					plain_args+=(--branch "$try_branch")
+				fi
+				if ! run as_user git clone "${clone_args[@]}" "$REPO_URL" "$DOTDIR" ||
+					! run as_user git -C "$DOTDIR" sparse-checkout set --no-cone '/tty/' '/bin/setup-tty.sh' ||
+					! run as_user git -C "$DOTDIR" checkout --quiet; then
+					warn "sparse clone of $label failed (git too old, or $REPO_URL unreachable); retrying plain shallow"
+					run rm -rf "$DOTDIR"
+					if ! run as_user git clone "${plain_args[@]}" "$REPO_URL" "$DOTDIR"; then
+						warn "cannot clone $label"
+						continue
+					fi
+				fi
+				if [[ -f "$DOTDIR/tty/zshrc" ]]; then
+					BRANCH="$try_branch"
+					break
+				fi
+				warn "$label has no tty/zshrc in it — skipping"
+				run rm -rf "$DOTDIR"
+			done
+			[[ -f "$DOTDIR/tty/zshrc" ]] ||
+				die "no branch of $REPO_URL gave me a tty/zshrc — pass --branch NAME, or --source DIR to install from a bundle"
 			DOTFILES_ROOT="$DOTDIR"
 			MODE=clone
 		fi

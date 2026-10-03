@@ -366,7 +366,7 @@ if $DO_DOTFILES; then
 			repo_url="$1"; home="$2"
 			tmpdir=$(mktemp -d)
 			trap "rm -rf $tmpdir" EXIT
-			git clone --quiet --branch framework-13 "$repo_url" "$tmpdir/repo"
+			git clone --quiet --branch "${DOTFILES_BRANCH:-main}" "$repo_url" "$tmpdir/repo"
 			cd "$tmpdir/repo"
 			git submodule update --init --recursive
 			# Move every top-level path (files and .git) into $HOME. If a file of

@@ -109,7 +109,7 @@ if [ "$CMD" = status ]; then
 	printf 'head     %s\n' "$(git -C "$root" rev-parse --short HEAD 2>/dev/null || echo '?')"
 	printf 'tracked  origin/%s (as of the last fetch)\n' "$(git -C "$root" rev-parse --abbrev-ref HEAD 2>/dev/null || echo '?')"
 	printf 'behind   %s\n' "$(git -C "$root" rev-list --count "HEAD..origin/$(git -C "$root" rev-parse --abbrev-ref HEAD)" 2>/dev/null || echo 'n/a')"
-	printf 'modified %s\n' "$([ -n "$(git -C "$root" status --porcelain --untracked-files=no 2>/dev/null)" ] && echo 'yes (auto-update will wait)' || echo 'no')"
+	printf 'modified %s\n' "$([ -n "$(git -C "$root" status --porcelain --untracked-files=no -- tty bin/setup-tty.sh 2>/dev/null)" ] && echo 'yes in tty/ (auto-update will wait)' || echo 'no (tty/ clean; other edits do not block it)')"
 	printf 'last check  %s  (every %s days, mode %s)\n' "$checked" "$DAYS" "$MODE"
 	printf 'state    %s\n' "$STATE_DIR"
 	[ -f "$LOG" ] && {
@@ -185,11 +185,13 @@ if [ "$ahead" -gt 0 ]; then
 	exit 0
 fi
 
-# Tracked modifications only: on the desktop this repo is $HOME, and scanning
-# every untracked file in it would cost more than the update itself. git refuses
-# to clobber local edits anyway; checking first just keeps the decision obvious.
-if [ -n "$(git -C "$root" status --porcelain --untracked-files=no 2>/dev/null)" ]; then
-	notify "$behind commit(s) available, working tree modified — nothing merged (git -C $root pull --ff-only)"
+# Scope the check to the paths this bundle owns. On the desktop the repo *is*
+# $HOME, so a repo-wide check finds it dirty forever and nothing ever updates;
+# meanwhile untracked files cannot block a fast-forward, and if an incoming
+# commit really does touch some other locally-modified file, the merge itself
+# fails and says so in the log. Checking first just keeps the decision obvious.
+if [ -n "$(git -C "$root" status --porcelain --untracked-files=no -- tty bin/setup-tty.sh 2>/dev/null)" ]; then
+	notify "$behind commit(s) available but tty/ is modified here — nothing merged (git -C $root pull --ff-only)"
 	exit 0
 fi
 

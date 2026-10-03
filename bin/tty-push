@@ -150,6 +150,46 @@ while [[ $# -gt 0 ]]; do
 done
 
 [[ -n "$HOST" ]] || die "no target. usage: tty-push [user@]host [-- setup-tty.sh args]"
+
+# ── 0. agree on a branch the remote actually has, with tty/ inside it ────────
+# --branch defaults to whatever this checkout is sitting on, which is often a
+# branch nobody ever pushed. A sparse clone of such a branch succeeds and hands
+# back a tree with no tty/ in it, so check before shipping anything rather than
+# failing on the far end. Falls back to bundle mode if no branch qualifies.
+if ! $FORCE_BUNDLE && [[ -d "$REPO_ROOT/.git" ]]; then
+	probe_ref="refs/remotes/tty-push-probe"
+	cands=()
+	[[ -n "$BRANCH" ]] && cands+=("$BRANCH")
+	for c in "${GUESS_BRANCH:-}" main master; do [[ -n "$c" ]] && cands+=("$c"); done
+	chosen="" remote_sha=""
+	for c in ${cands[@]+"${cands[@]}"}; do
+		# The leading + is required: the ref survives from the previous candidate,
+		# and without it git rejects the second and later fetches as
+		# non-fast-forward, which silently skips every branch after the first.
+		if GIT_TERMINAL_PROMPT=0 git -C "$REPO_ROOT" fetch -q --no-tags "$REPO_URL" "+refs/heads/$c:$probe_ref" >/dev/null 2>&1 &&
+			git -C "$REPO_ROOT" cat-file -e "$probe_ref:tty/zshrc" 2>/dev/null; then
+			chosen="$c"
+			remote_sha=$(git -C "$REPO_ROOT" rev-parse "$probe_ref")
+			break
+		fi
+	done
+	git -C "$REPO_ROOT" update-ref -d "$probe_ref" 2>/dev/null || true
+
+	if [[ -z "$chosen" ]]; then
+		info "no branch on $REPO_URL carries tty/ — shipping the bundle instead"
+		FORCE_BUNDLE=true
+	else
+		[[ "$chosen" != "$BRANCH" && -n "$BRANCH" ]] &&
+			info "'$BRANCH' is not on $REPO_URL (or has no tty/) — using '$chosen' instead"
+		BRANCH="$chosen"
+		if [ -n "$(git -C "$REPO_ROOT" status --porcelain --untracked-files=no -- tty bin/setup-tty.sh 2>/dev/null)" ]; then
+			info "note: tty/ has uncommitted changes here — a clone will not see them; pass --bundle to ship the working copy"
+		fi
+		if [[ -n "$remote_sha" && "$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo ?)" != "$remote_sha" ]]; then
+			info "note: '$BRANCH' on the remote is $(git -C "$REPO_ROOT" rev-parse --short "$remote_sha"), this checkout is $(git -C "$REPO_ROOT" rev-parse --short HEAD) — the host installs the pushed commit, not your working copy (pass --bundle to ship these files)"
+		fi
+	fi
+fi
 [[ -n "$SSH_PORT" ]] && SSH_OPTS+=(-p "$SSH_PORT")
 # Never sit on a host-key question in a script, but do not disable checking.
 SSH_OPTS+=(-o "ConnectTimeout=10")

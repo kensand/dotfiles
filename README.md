@@ -7,10 +7,10 @@ Arch Linux + Sway/Wayland desktop setup, plus a headless bundle for TTY/SSH-only
 Prerequisites: fresh Arch install, bootloader configured, a user account created.
 
 ```sh
-curl -sL https://github.com/kensand/dotfiles/raw/framework-13/bin/setup.sh | sudo -E bash
+curl -sL https://github.com/kensand/dotfiles/raw/main/bin/setup.sh | sudo -E bash
 ```
 
-This installs packages (including Node.js LTS via nvm and paru from the AUR), clones dotfiles into `$HOME`, sets up submodules, enables services, and sets your shell to zsh.
+This installs packages (including Node.js LTS via nvm and paru from the AUR), clones dotfiles into `$HOME`, sets up submodules, enables services, and sets your shell to zsh. Pass `DOTFILES_BRANCH=<branch>` in the environment to clone a branch other than `main`.
 
 Log out and back in after.
 
@@ -50,7 +50,7 @@ It tars `tty/` + the installer to `~/.dotfiles-tty-bundle`, so the target needs 
 On the host itself (Debian/Ubuntu/Arch/Fedora/SUSE/Alpine — pacman, apt, dnf, zypper, apk are all detected):
 
 ```sh
-BRANCH=main   # or framework-13, until that branch is renamed
+BRANCH=main   # the canonical branch; framework-13 is the old name for the same line
 # as root, for $SUDO_USER; or as the user, where sudo is used for packages only
 curl -fsSL "https://github.com/kensand/dotfiles/raw/$BRANCH/bin/setup-tty.sh" | bash
 # offline / no route to GitHub: point it at a checkout or an unpacked bundle
