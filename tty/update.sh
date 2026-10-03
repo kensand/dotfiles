@@ -95,6 +95,24 @@ fi
 
 mkdir -p "$STATE_DIR"
 
+# Which remote to pull from: the one the current branch actually tracks, not a
+# hardcoded 'origin'. On the desktop this repo is $HOME, whose 'origin' is a
+# private Forgejo while the bundle is published from GitHub, and a branch that
+# the fetched remote does not have looks exactly like being offline. Prints
+# "<remote> <remote/branch>".
+upstream_of() {
+	b=$(git -C "$1" rev-parse --abbrev-ref HEAD 2>/dev/null || echo '')
+	[ -n "$b" ] || {
+		printf 'origin origin\n'
+		return
+	}
+	u=$(git -C "$1" rev-parse --abbrev-ref --symbolic-full-name "$b@{upstream}" 2>/dev/null || true)
+	case "$u" in
+	*/*) printf '%s %s\n' "${u%%/*}" "$u" ;;
+	*) printf 'origin origin/%s\n' "$b" ;;
+	esac
+}
+
 # ── status: read-only, no lock, no network ───────────────────────────────────
 if [ "$CMD" = status ]; then
 	last=$(last_epoch)
@@ -104,11 +122,15 @@ if [ "$CMD" = status ]; then
 	else
 		checked="never"
 	fi
+	up=$(upstream_of "$root")
+	up_remote=${up%% *}
+	up_tracking=${up#* }
+	br=$(git -C "$root" rev-parse --abbrev-ref HEAD 2>/dev/null || echo '?')
 	printf 'repo     %s\n' "$root"
-	printf 'branch   %s\n' "$(git -C "$root" rev-parse --abbrev-ref HEAD 2>/dev/null || echo '?')"
+	printf 'branch   %s\n' "$br"
 	printf 'head     %s\n' "$(git -C "$root" rev-parse --short HEAD 2>/dev/null || echo '?')"
-	printf 'tracked  origin/%s (as of the last fetch)\n' "$(git -C "$root" rev-parse --abbrev-ref HEAD 2>/dev/null || echo '?')"
-	printf 'behind   %s\n' "$(git -C "$root" rev-list --count "HEAD..origin/$(git -C "$root" rev-parse --abbrev-ref HEAD)" 2>/dev/null || echo 'n/a')"
+	printf 'tracked  %s (as of the last fetch)\n' "$up_tracking"
+	printf 'behind   %s\n' "$(git -C "$root" rev-list --count "HEAD..$up_tracking" 2>/dev/null || echo 'n/a')"
 	printf 'modified %s\n' "$([ -n "$(git -C "$root" status --porcelain --untracked-files=no -- tty bin/setup-tty.sh 2>/dev/null)" ] && echo 'yes in tty/ (auto-update will wait)' || echo 'no (tty/ clean; other edits do not block it)')"
 	printf 'last check  %s  (every %s days, mode %s)\n' "$checked" "$DAYS" "$MODE"
 	printf 'state    %s\n' "$STATE_DIR"
@@ -165,12 +187,16 @@ else
 	TMO=""
 fi
 
-if ! $TMO git -C "$root" fetch --quiet origin >>"$LOG" 2>&1; then
-	notify "could not fetch origin (offline? try: git -C $root fetch)"
+up=$(upstream_of "$root")
+up_remote=${up%% *}
+up_tracking=${up#* }
+
+if ! $TMO git -C "$root" fetch --quiet "$up_remote" >>"$LOG" 2>&1; then
+	notify "could not fetch $up_remote (offline? try: git -C $root fetch)"
 	exit 0
 fi
 
-remote="origin/$branch"
+remote="$up_tracking"
 behind=$(git -C "$root" rev-list --count "HEAD..$remote" 2>/dev/null || echo 0)
 ahead=$(git -C "$root" rev-list --count "$remote..HEAD" 2>/dev/null || echo 0)
 before=$(git -C "$root" rev-parse --short HEAD)
@@ -181,7 +207,7 @@ if [ "$behind" -eq 0 ]; then
 fi
 
 if [ "$ahead" -gt 0 ]; then
-	notify "$behind commit(s) on origin/$branch, but $ahead local commit(s) — nothing merged (git -C $root status)"
+	notify "$behind commit(s) on $remote, but $ahead local commit(s) — nothing merged (git -C $root status)"
 	exit 0
 fi
 
@@ -196,7 +222,7 @@ if [ -n "$(git -C "$root" status --porcelain --untracked-files=no -- tty bin/set
 fi
 
 if [ "$MODE" != auto ]; then
-	notify "$behind commit(s) available on origin/$branch (run: $0 run)"
+	notify "$behind commit(s) available on $remote (run: $0 run)"
 	exit 0
 fi
 
