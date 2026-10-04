@@ -146,7 +146,7 @@ if [ "$CMD" = check ]; then
 	if [ "${DOTFILES_UPDATE_DISABLE:-0}" = 1 ] || [ "$MODE" = off ]; then exit 0; fi
 fi
 
-today=$(( $(date +%s) / 86400 ))
+today=$(($(date +%s) / 86400))
 last=$(last_epoch)
 last=${last:-0}
 if [ "$CMD" = check ] && [ $((today - last)) -lt "$DAYS" ]; then

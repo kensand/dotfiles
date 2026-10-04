@@ -18,9 +18,12 @@
 #   bin/tty-push user@host                 # run this ON a remote host, from here
 #
 # Flags:
-#   --packages      packages only
-#   --dotfiles      configs only
+#   --flavor NAME   full | minimal | custom | tty — what the interactive menu
+#                   picks; omit on a TTY to be asked, omit off a TTY for full
+#   --packages      packages only (same as --flavor custom without packages)
+#   --dotfiles      configs only (same as --flavor custom without packages)
 #   --no-packages   skip the package step (needs no root)
+#   --no-oh-my-zsh  skip the oh-my-zsh clone (configs stay, plain prompt)
 #   --repo-url URL  clone source   [default https://github.com/kensand/dotfiles.git]
 #   --branch NAME   branch to track [default: the branch this script came from]
 #   --source DIR    offline: take tty/ from DIR (a repo checkout or a bundle) instead of cloning
@@ -30,9 +33,15 @@
 #   --uninstall     remove the files this script linked and restore what it moved
 #   -h, --help      this text
 #
-# What it does, in order:
-#   1. packages (zsh, tmux, git, curl, and terminal tools) via the host's own
-#      package manager — pacman, apt, dnf, zypper or apk
+# What it does, in order (the menu picks the flavor; --flavor picks it by hand):
+#   full     configs + all the usual packages          (the default)
+#   minimal  configs only — no packages at all
+#   custom   a second menu: toggle each package group and the extras
+#            (tailscale, oh-my-zsh) individually
+#   tty      nothing: probe the host and report, change nothing
+#
+#   1. packages via the host's own package manager — pacman, apt, dnf, zypper
+#      or apk — in the groups core / editors / tools
 #   2. oh-my-zsh, cloned to ~/.oh-my-zsh if no install is already found
 #   3. the dotfiles repo, sparse-cloned to ~/.dotfiles (tty/ plus this script,
 #      so the 40 MB of binaries the desktop keeps in bin/ does not come along)
@@ -57,6 +66,8 @@ SOURCE_DIR=""
 COPY_FILES=false
 NO_CHSH=false
 WITH_TAILSCALE=false
+FLAVOR="" # empty = decide later: ask on a TTY, else full
+WITH_OMZ=true
 DO_PACKAGES=true
 DO_DOTFILES=true
 DRY=false
@@ -88,9 +99,15 @@ need_arg() { [[ -n "${2:-}" ]] || die "$1 needs a value"; }
 
 while [[ $# -gt 0 ]]; do
 	case "$1" in
+	--flavor)
+		need_arg "$1" "${2:-}"
+		FLAVOR="$2"
+		shift
+		;;
 	--packages) DO_DOTFILES=false ;;
 	--dotfiles) DO_PACKAGES=false ;;
 	--no-packages) DO_PACKAGES=false ;;
+	--no-oh-my-zsh) WITH_OMZ=false ;;
 	--copy) COPY_FILES=true ;;
 	--no-chsh) NO_CHSH=true ;;
 	--tailscale) WITH_TAILSCALE=true ;;
@@ -119,6 +136,100 @@ while [[ $# -gt 0 ]]; do
 	esac
 	shift
 done
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Flavor: what to install
+#
+# full     core + editors + tools        (what the script did before menus)
+# minimal  core only                     (a bare but usable terminal host)
+# custom   a second menu to toggle the groups and the extras
+#
+# Flags that already express an intent (--packages, --dotfiles, --no-packages,
+# --tailscale, --no-oh-my-zsh) act like an explicit --flavor custom: the user
+# has made their choices, so do not ask again. Off a TTY (curl | bash, tty-push)
+# nothing is asked and the default is full.
+# ─────────────────────────────────────────────────────────────────────────────
+# Group toggles: true when that group is to be installed. choose_custom() flips
+# them; the package list in section 1 is built from exactly these.
+PKG_CORE=true
+PKG_EDIT=true
+PKG_TOOLS=true
+
+flavor_apply() {
+	case "$1" in
+	full)
+		DO_PACKAGES=true
+		DO_DOTFILES=true
+		;;
+	minimal)
+		DO_PACKAGES=true
+		DO_DOTFILES=false
+		;;
+	custom)
+		DO_PACKAGES=false
+		DO_DOTFILES=false
+		;;
+	esac
+}
+
+# The second menu: custom. Flips the group/extras toggles; answers are read
+# from /dev/tty so sudo -E and piping the script itself do not eat them.
+# (No such /dev/tty — a daemon or container without one — is answered y/n by the
+# caller with --flavor + flags; the interactive menus need a real terminal.)
+choose_custom() {
+	local -a rows=(
+		"DO_PACKAGES|packages (zsh, git, curl, tmux, vim, less)|y"
+		"DO_DOTFILES|configs (.zshrc, .tmux.conf, oh-my-zsh)|y"
+		"WITH_OMZ|  oh-my-zsh (inside configs)|y"
+		"PKG_CORE|  core: zsh, git, curl, tmux, vim, less|y"
+		"PKG_EDIT|  editors & system: htop, btop, ncdu|y"
+		"PKG_TOOLS|  tools: ripgrep, fd, wget, man, ca-certificates|y"
+		"WITH_TAILSCALE|tailscale|n"
+	)
+	local row key label def answer
+	info "custom install — answer y/n to each (Enter keeps the default):"
+	for row in "${rows[@]}"; do
+		key=${row%%|*}
+		rest=${row#*|}
+		label=${rest%|*}
+		def=${rest##*|}
+		read -r -p "  $label [$def] " answer </dev/tty
+		answer=${answer:-$def}
+		case "$answer" in
+		[yY] | [yY]es) printf -v "$key" true ;;
+		*) printf -v "$key" false ;;
+		esac
+	done
+	# A group with no packages left is the same as the packages toggle going off.
+	[[ $PKG_CORE == true || $PKG_EDIT == true || $PKG_TOOLS == true ]] ||
+		DO_PACKAGES=false
+}
+
+# Menu: which flavor. Prints the choice on stdout (captured by the caller);
+# the menu text itself goes to stderr so it does not pollute the answer.
+choose_flavor() {
+	local answer
+	{
+		info "which flavor?"
+		printf '  1) full     configs + all the usual packages\n'
+		printf '  2) minimal  configs only (no packages at all)\n'
+		printf '  3) custom   choose the pieces yourself\n'
+		printf '  4) tty      install nothing, just probe the host\n'
+	} >&2
+	read -r -p "  [1-4] " answer </dev/tty
+	case "$answer" in
+	2) echo minimal ;;
+	3) echo custom ;;
+	4) echo tty ;;
+	*) echo full ;;
+	esac
+}
+
+# NOTE: this function is called as FLAVOR=$(choose_flavor). The subshell
+# inherits the caller's stdin — which is exactly the stream the user is typing
+# the menu answers into — so the first stray answer would be swallowed as the
+# flavor. Both prompts therefore read from /dev/tty, never from the inherited
+# stdin, and the menu text goes to stderr so only the choice is captured.
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Who and where
@@ -256,6 +367,28 @@ pkg_install_batch() {
 # ════════════════════════════════════════════════════════════════════════════
 # UNINSTALL
 # ════════════════════════════════════════════════════════════════════════════
+case "$FLAVOR" in
+full | minimal | custom | tty) ;;
+"")
+	if [[ -t 0 && -t 1 ]]; then
+		FLAVOR=$(choose_flavor)
+	else
+		FLAVOR=full
+		info "no terminal to ask on; assuming the 'full' flavor (pass --flavor NAME to choose)"
+	fi
+	;;
+*) die "unknown flavor: $FLAVOR (full, minimal, custom or tty)" ;;
+esac
+flavor_apply "$FLAVOR"
+info "flavor: $FLAVOR"
+if [[ $FLAVOR == custom ]]; then
+	choose_custom
+elif [[ $FLAVOR == tty ]]; then
+	DO_PACKAGES=false
+	DO_DOTFILES=false
+	WITH_OMZ=false
+fi
+
 if $UNINSTALL; then
 	info "uninstalling tty links for $USER_NAME"
 	restored=0
@@ -309,26 +442,21 @@ if $DO_PACKAGES; then
 			;;
 		esac
 
-		# canonical name -> commands that prove it is present
-		packages=(
-			"zsh:zsh"
-			"git:git"
-			"curl:curl"
-			"tmux:tmux"
-			"vim:vim vi"
-			"less:less"
-			"htop:htop"
-			"btop:btop"
-			"ncdu:ncdu"
-			"ripgrep:rg"
-			"fd:fd fdfind"
-			"wget:wget"
-			"man-db:man"
-			"man-pages:"
-			# HTTPS needs this and slim images forget it; without it the self-update
-			# check can never reach the repo and fails in silence once a day.
-			"ca-certificates:"
+		# canonical name -> commands that prove it is present. The groups are what
+		# the menu toggles; each entry carries its probe names.
+		groups=(
+			"PKG_CORE|zsh:zsh|git:git|curl:curl|tmux:tmux|vim:vim vi|less:less"
+			"PKG_EDIT|htop:htop|btop:btop|ncdu:ncdu"
+			"PKG_TOOLS|ripgrep:rg|fd:fd fdfind|wget:wget|man-db:man|man-pages:|ca-certificates:"
 		)
+		packages=()
+		for g in "${groups[@]}"; do
+			key=${g%%|*}
+			if [[ ${!key} == true ]]; then
+				IFS='|' read -ra rest <<<"${g#*|}"
+				packages+=("${rest[@]}")
+			fi
+		done
 
 		want=()
 		already=()
@@ -386,7 +514,7 @@ fi
 # ════════════════════════════════════════════════════════════════════════════
 # 2. OH-MY-ZSH
 # ════════════════════════════════════════════════════════════════════════════
-if $DO_DOTFILES; then
+if $DO_DOTFILES && $WITH_OMZ; then
 	found_omz=""
 	for d in "$USER_HOME/.oh-my-zsh" "$USER_HOME/.config/oh-my-zsh" /usr/share/oh-my-zsh; do
 		[[ -f "$d/oh-my-zsh.sh" ]] && {
@@ -632,7 +760,11 @@ fi
 # Summary
 # ════════════════════════════════════════════════════════════════════════════
 echo ""
-info "done ($MODE)"
+if [[ $FLAVOR == tty ]]; then
+	info "tty flavor: probed the host only, installed nothing"
+else
+	info "done ($FLAVOR, mode: ${MODE:-none})"
+fi
 if $DRY; then
 	echo "Nothing was changed (dry run)."
 else
