@@ -47,24 +47,33 @@ bin/tty-push user@host -- --no-chsh   # anything after -- reaches setup-tty.sh
 
 It tars `tty/` + the installer to `~/.dotfiles-tty-bundle`, so the target needs only a POSIX shell and `tar` — no curl, git, or GitHub access. It then asks the target whether *it* can reach the repo: if yes it sparse-clones (that is what enables self-update), if no it installs from the bundle and says so. Install bash on a bare Alpine image is handled first, since the installer itself is bash.
 
-On the host itself (Debian/Ubuntu/Arch/Fedora/SUSE/Alpine — pacman, apt, dnf, zypper, apk are all detected):
+On the host itself (Debian/Ubuntu/Arch/Fedora/SUSE/Alpine — pacman, apt, dnf, zypper, apk are all detected). Full: configs + all the usual packages (as root, for `$SUDO_USER`):
 
 ```sh
-BRANCH=main   # the canonical branch; framework-13 is the old name for the same line
+curl -fsSL https://raw.githubusercontent.com/kensand/dotfiles/main/bin/setup-tty.sh | sudo -E bash -s -- --flavor full
+```
 
-# full — configs + all the usual packages (the default; as root, for $SUDO_USER)
-curl -fsSL "https://raw.githubusercontent.com/kensand/dotfiles/$BRANCH/bin/setup-tty.sh" | sudo -E bash -s -- --flavor full
+Minimal: configs only, no packages at all (as the user, no root needed):
 
-# minimal — configs only, no packages at all (as the user; no root needed)
-curl -fsSL "https://raw.githubusercontent.com/kensand/dotfiles/$BRANCH/bin/setup-tty.sh" | bash -s -- --flavor minimal
+```sh
+curl -fsSL https://raw.githubusercontent.com/kensand/dotfiles/main/bin/setup-tty.sh | bash -s -- --flavor minimal
+```
 
-# custom — interactive y/n menu over every package group and extra (tailscale, oh-my-zsh)
-curl -fsSL "https://raw.githubusercontent.com/kensand/dotfiles/$BRANCH/bin/setup-tty.sh" | sudo -E bash -s -- --flavor custom
+Custom: interactive y/n menu over every package group and extra (tailscale, oh-my-zsh):
 
-# tty — probe the host and report, change nothing
-# (same command with --flavor tty; or just run it on a TTY and pick from the menu)
+```sh
+curl -fsSL https://raw.githubusercontent.com/kensand/dotfiles/main/bin/setup-tty.sh | sudo -E bash -s -- --flavor custom
+```
 
-# offline / no route to GitHub: point it at a checkout or an unpacked bundle
+Tty: probe the host and report, change nothing:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/kensand/dotfiles/main/bin/setup-tty.sh | sudo -E bash -s -- --flavor tty
+```
+
+Offline / no route to GitHub: point it at a checkout or an unpacked bundle:
+
+```sh
 bash /path/to/dotfiles/bin/setup-tty.sh --source /path/to/dotfiles
 ```
 
