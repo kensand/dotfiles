@@ -227,12 +227,12 @@ fi
 [[ -d "$REPO_ROOT/tty" ]] || die "$REPO_ROOT/tty not found — run this from your dotfiles repo"
 info "sending tty/ + setup-tty.sh to $HOST:~/$BUNDLE_NAME"
 if $DRY; then
-	printf '  [dry] tar -C %s -cf - tty bin/setup-tty.sh | ssh %s %s -- "tar -C \$HOME/%s -xf -"\n' \
+	printf '  [dry] tar -C %s -cf - tty bin/setup-tty.sh .pi/agent/settings.json | ssh %s %s -- "tar -C \$HOME/%s -xf -"\n' \
 		"$REPO_ROOT" "${SSH_OPTS[*]}" "$HOST" "$BUNDLE_NAME"
 else
 	ssh "${SSH_OPTS[@]}" "$HOST" \
 		"rm -rf \"\$HOME/$BUNDLE_NAME\" && mkdir -p \"\$HOME/$BUNDLE_NAME\" && tar -C \"\$HOME/$BUNDLE_NAME\" -xf -" \
-		< <(tar -C "$REPO_ROOT" -cf - tty bin/setup-tty.sh) ||
+		< <(tar -C "$REPO_ROOT" -cf - tty bin/setup-tty.sh .pi/agent/settings.json) ||
 		die "could not copy the bundle (does the target have tar?)"
 fi
 

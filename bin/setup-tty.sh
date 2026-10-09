@@ -184,6 +184,8 @@ choose_custom() {
 		"PKG_CORE|  core: zsh, git, curl, tmux, vim, less|y"
 		"PKG_EDIT|  editors & system: htop, btop, ncdu|y"
 		"PKG_TOOLS|  tools: ripgrep, fd, wget, man, ca-certificates|y"
+		"PKG_PI|  pi coding agent: nodejs, pi (npm)|y"
+		"DO_PI|  pi agent settings (~/.pi/agent/settings.json)|y"
 		"WITH_TAILSCALE|tailscale|n"
 	)
 	local row key label def answer
@@ -201,7 +203,7 @@ choose_custom() {
 		esac
 	done
 	# A group with no packages left is the same as the packages toggle going off.
-	[[ $PKG_CORE == true || $PKG_EDIT == true || $PKG_TOOLS == true ]] ||
+	[[ $PKG_CORE == true || $PKG_EDIT == true || $PKG_TOOLS == true || $PKG_PI == true ]] ||
 		DO_PACKAGES=false
 }
 
@@ -448,6 +450,7 @@ if $DO_PACKAGES; then
 			"PKG_CORE|zsh:zsh|git:git|curl:curl|tmux:tmux|vim:vim vi|less:less"
 			"PKG_EDIT|htop:htop|btop:btop|ncdu:ncdu"
 			"PKG_TOOLS|ripgrep:rg|fd:fd fdfind|wget:wget|man-db:man|man-pages:|ca-certificates:"
+			"PKG_PI|nodejs:node nodejs|npm:npm"
 		)
 		packages=()
 		for g in "${groups[@]}"; do
@@ -689,6 +692,95 @@ if $DO_DOTFILES; then
 		linked=$((linked + 1))
 		info "linked .$f -> $src"
 	done
+fi
+
+# ════════════════════════════════════════════════════════════════════════════
+# 4b. PI CODING AGENT (settings.json tracked; models.json from f creds)
+# ════════════════════════════════════════════════════════════════════════════
+# The tracked .pi/agent/.gitignore whitelist blocks everything but settings.json
+# out of the clone. models.json (LAN LLM boxes) is not in the repo — it lives in
+# the f creds store (cred: pi-models) and is restored with 'f pi-models restore'.
+if $DO_DOTFILES && $DO_PI && [[ -f "$DOTFILES_ROOT/.pi/agent/settings.json" ]]; then
+	if ! have_cmd pi && ! have_cmd npm; then
+		info "node/npm not found; install node first — pi settings still get installed"
+	elif ! have_cmd pi && have_cmd npm; then
+		info "installing pi coding agent (npm global)..."
+		run as_user npm install -g --ignore-scripts @earendil-works/pi-coding-agent ||
+			warn "npm install of pi failed (network?); settings will be installed anyway"
+	fi
+
+	# Install the tracked settings.json (backup existing first, never clobber).
+	pi_src="$DOTFILES_ROOT/.pi/agent/settings.json"
+	pi_dst="$USER_HOME/.pi/agent/settings.json"
+	if [[ -e "$pi_dst" ]] && ! cmp -s "$pi_src" "$pi_dst"; then
+		STAMP_PI=$(date +%Y%m-%dT%H%M%S)
+		run as_user mkdir -p "$BACKUP_ROOT/$STAMP_PI"
+		run as_user cp -a "$pi_dst" "$BACKUP_ROOT/$STAMP_PI/pi-settings.json"
+		run as_user mkdir -p "$USER_HOME/.pi/agent"
+		run as_user cp -a "$pi_src" "$pi_dst"
+		info "installed pi settings.json (old one backed up — merge on purpose)"
+	elif [[ ! -e "$pi_dst" ]]; then
+		run as_user mkdir -p "$USER_HOME/.pi/agent"
+		run as_user cp -a "$pi_src" "$pi_dst"
+		info "installed pi settings.json"
+	else
+		skip "~/.pi/agent/settings.json already matches"
+	fi
+
+	# fcli + creds restore: the personal uck bucket carries f pi-models.
+	if ! have_cmd f; then
+		if have_cmd npm; then
+			info "installing fcli (npm global)..."
+			run as_user npm install -g --ignore-scripts @fcli.dev/f ||
+				warn "npm install of fcli failed — models.json restore skipped"
+		else
+			warn "npm missing — cannot install fcli; run 'f pi-models restore' later"
+		fi
+	fi
+	if have_cmd f; then
+		# Personal uck bucket (forged into the config the user keeps locally).
+		if [[ -f "$DOTFILES_ROOT/.config/f/f.config.json" ]] && ! grep -q kensand-fcli-ucks "$USER_HOME/.f/f.config.json" 2>/dev/null; then
+			info "merging fcli uck bucket config..."
+			run as_user mkdir -p "$USER_HOME/.f"
+			run as_user cp -a "$USER_HOME/.f/f.config.json" "$USER_HOME/.f/f.config.json.bak" 2>/dev/null
+			run as_user cp -a "$DOTFILES_ROOT/.config/f/f.config.json" "$USER_HOME/.f/f.config.json"
+			run as_user f uck up 2>/dev/null || true
+		fi
+		# fj defaultHost is not tracked — inject it from creds (fj-default-host)
+		# if the store is already unlocked, else leave it out: f fj resolves
+		# the host from git origin anyway, defaultHost is just a convenience.
+		if ! grep -q defaultHost "$USER_HOME/.f/f.config.json" 2>/dev/null; then
+			fj_host=$(run as_user f creds get fj-default-host --secrets 2>/dev/null || true)
+			if [[ -n "$fj_host" ]]; then
+				info "injecting fj defaultHost from creds..."
+				run as_user f config set fj.defaultHost "$fj_host" || true
+			else
+				info "no creds:fj-default-host — f fj will resolve hosts from git origin"
+			fi
+		fi
+		# f creds is a single encrypted file (~/.f/f.creds.enc) that carries the
+		# whole store — including pi-models. There is no import command; you move
+		# the file itself, then unlock it with the passkey.
+		creds_file="${F_CREDS_FILE:-}"
+		if [[ -z "$creds_file" && -t 0 ]]; then
+			read -r -p "  path to your f.creds.enc (enter to skip): " creds_file </dev/tty
+		fi
+		if [[ -n "$creds_file" && -f "$creds_file" ]]; then
+			info "installing f creds store from $creds_file..."
+			run as_user mkdir -p "$USER_HOME/.f"
+			[[ -e "$USER_HOME/.f/f.creds.enc" ]] &&
+				run as_user cp -a "$USER_HOME/.f/f.creds.enc" "$USER_HOME/.f/f.creds.enc.bak"
+			run as_user cp -a "$creds_file" "$USER_HOME/.f/f.creds.enc"
+			if [[ -t 0 ]]; then
+				warn "unlock the store to finish (passkey): f creds unlock"
+				info "then: f pi-models restore"
+			else
+				warn "no terminal for the passkey — run 'f creds unlock && f pi-models restore' on the host"
+			fi
+		else
+			warn "no creds file given — run 'f creds unlock && f pi-models restore' on the host to get models.json"
+		fi
+	fi
 fi
 
 # ════════════════════════════════════════════════════════════════════════════

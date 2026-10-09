@@ -426,6 +426,19 @@ if $DO_DOTFILES; then
 fi
 
 # ════════════════════════════════════════════════════════════════
+# PI CODING AGENT (settings live in the repo as ~/.pi — nothing to copy)
+# ════════════════════════════════════════════════════════════════
+# setup.sh makes $HOME the repo checkout, so ~/.pi/agent/settings.json is the
+# tracked file itself. Verify pi can run, and warn if the npm package is
+# missing. The packages array in settings.json is installed lazily by pi on
+# first run.
+if [[ -f "$USER_HOME/.pi/agent/settings.json" ]] && command -v pi >/dev/null 2>&1; then
+	skip "pi + tracked settings.json present"
+elif ! command -v pi >/dev/null 2>&1; then
+	warn "pi is not on PATH yet — the packages array in ~/.pi/agent/settings.json installs on first run. Install it with: npm install -g --ignore-scripts @earendil-works/pi-coding-agent"
+fi
+
+# ════════════════════════════════════════════════════════════════
 # Summary
 # ════════════════════════════════════════════════════════════════
 info "Done!"

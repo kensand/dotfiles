@@ -46,6 +46,10 @@
 # Wallpaper script (submodule)
 !.config/Daily-Reddit-Wallpaper
 
+# fcli config (no secrets — the store is in the untracked ~/.f/f.creds.enc)
+!.config/f/
+!.config/f/f.config.json
+
 # Konsole profile
 !.local/share/konsole/
 !.local/share/konsole/**

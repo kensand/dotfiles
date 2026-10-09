@@ -2,14 +2,19 @@
   "packages": [
     "npm:@juicesharp/rpiv-ask-user-question",
     "npm:@juicesharp/rpiv-todo",
-    "npm:pi-lens",
     "npm:pi-web-access",
     "npm:pi-mcp-adapter",
     "npm:@almegal/pi-file-browser",
-    "npm:pi-subagents"
+    "npm:pi-subagents",
+    "npm:pi-effort"
   ],
-  "lastChangelogVersion": "0.84.1",
+  "lastChangelogVersion": "1.1.0",
   "theme": "dark",
   "defaultProvider": "fennec",
-  "defaultModel": "ai"
+  "defaultModel": "ai",
+  "defaultThinkingLevel": "off",
+  "hideThinkingBlock": false,
+  "extensions": [
+    "-builtin:mcp"
+  ]
 }
