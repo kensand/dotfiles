@@ -58,16 +58,41 @@ pacman_install() {
 # ────────────────────────────────────────────────────────────
 DO_PACKAGES=true
 DO_DOTFILES=true
+RELAX_FAILLOCK=false
 for arg in "$@"; do
 	case "$arg" in
 	--packages) DO_DOTFILES=false ;;
 	--dotfiles) DO_PACKAGES=false ;;
+	--relax-faillock)
+		RELAX_FAILLOCK=true
+		;;
 	-h | --help)
-		echo "Usage: sudo -E bash setup.sh [--packages|--dotfiles]"
+		echo "Usage: sudo -E bash setup.sh [--packages|--dotfiles|--relax-faillock]"
 		exit 0
 		;;
 	esac
 done
+
+if $RELAX_FAILLOCK; then
+	info "pam_faillock: Arch's stock /etc/pam.d/system-auth locks the account for 10"
+	info "minutes after 3 failed password attempts (console logins and sudo share"
+	info "the same tally). Raise the attempt limit to 10 and shorten the lockout:"
+	cat <<'EOF'
+
+  # 10 attempts before lockout, 2 minute lockout instead of 10
+  # (both are applied per-user in /var/lib/faillock, not globally)
+  sudo sed -i 's/pam_faillock.so      preauth/pam_faillock.so      preauth deny=10 unlock_time=120/' /etc/pam.d/system-auth
+  sudo sed -i 's/pam_faillock.so      authfail/pam_faillock.so      authfail deny=10 unlock_time=120/' /etc/pam.d/system-auth
+
+  # verify the two lines now read: deny=10 unlock_time=120
+  sudo grep faillock /etc/pam.d/system-auth
+
+  # if you are already locked out, clear the tally (as root):
+  #   faillock --user <name> --reset
+
+EOF
+	exit 0
+fi
 
 # ────────────────────────────────────────────────────────────
 # 0. Banner / mode (after arg parsing so flags are reflected)
