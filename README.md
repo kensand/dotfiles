@@ -51,11 +51,24 @@ On the host itself (Debian/Ubuntu/Arch/Fedora/SUSE/Alpine — pacman, apt, dnf, 
 
 ```sh
 BRANCH=main   # the canonical branch; framework-13 is the old name for the same line
-# as root, for $SUDO_USER; or as the user, where sudo is used for packages only
+
+# full — configs + all the usual packages (the default; as root, for $SUDO_USER)
 curl -fsSL "https://raw.githubusercontent.com/kensand/dotfiles/$BRANCH/bin/setup-tty.sh" | sudo -E bash -s -- --flavor full
+
+# minimal — configs only, no packages at all (as the user; no root needed)
+curl -fsSL "https://raw.githubusercontent.com/kensand/dotfiles/$BRANCH/bin/setup-tty.sh" | bash -s -- --flavor minimal
+
+# custom — interactive y/n menu over every package group and extra (tailscale, oh-my-zsh)
+curl -fsSL "https://raw.githubusercontent.com/kensand/dotfiles/$BRANCH/bin/setup-tty.sh" | sudo -E bash -s -- --flavor custom
+
+# tty — probe the host and report, change nothing
+# (same command with --flavor tty; or just run it on a TTY and pick from the menu)
+
 # offline / no route to GitHub: point it at a checkout or an unpacked bundle
 bash /path/to/dotfiles/bin/setup-tty.sh --source /path/to/dotfiles
 ```
+
+Any of them takes `--no-chsh` (leave the login shell alone) and `--dry-run` (print every command, change nothing).
 
 What it does: installs zsh, tmux, git, curl, vim, a few terminal tools and `ca-certificates`; clones oh-my-zsh to `~/.oh-my-zsh` unless one already exists; sparse-clones this repo to `~/.dotfiles` (**`tty/` + this script only** — the desktop's committed binaries in `bin/` stay behind, ~200 KB instead of 40 MB); symlinks `~/.zshrc` and `~/.tmux.conf` (previous files are moved to `~/.dotfiles-tty-backup/`, never deleted); sets the login shell to zsh; then verifies from the outside that `~/.zshrc` parses, tmux loads, and reports the login shell. `--dry-run` shows every command, `--uninstall` restores the backups.
 
