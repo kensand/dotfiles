@@ -52,7 +52,7 @@ On the host itself (Debian/Ubuntu/Arch/Fedora/SUSE/Alpine — pacman, apt, dnf, 
 ```sh
 BRANCH=main   # the canonical branch; framework-13 is the old name for the same line
 # as root, for $SUDO_USER; or as the user, where sudo is used for packages only
-curl -fsSL "https://github.com/kensand/dotfiles/raw/$BRANCH/bin/setup-tty.sh" | bash
+curl -fsSL "https://raw.githubusercontent.com/kensand/dotfiles/$BRANCH/bin/setup-tty.sh" | sudo -E bash -s -- --flavor full
 # offline / no route to GitHub: point it at a checkout or an unpacked bundle
 bash /path/to/dotfiles/bin/setup-tty.sh --source /path/to/dotfiles
 ```
