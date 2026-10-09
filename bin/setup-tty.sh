@@ -154,6 +154,8 @@ done
 PKG_CORE=true
 PKG_EDIT=true
 PKG_TOOLS=true
+PKG_PI=true
+DO_PI=true
 
 flavor_apply() {
 	case "$1" in
@@ -168,6 +170,11 @@ flavor_apply() {
 	custom)
 		DO_PACKAGES=false
 		DO_DOTFILES=false
+		;;
+	tty)
+		DO_PACKAGES=false
+		DO_DOTFILES=false
+		WITH_OMZ=false
 		;;
 	esac
 }
@@ -184,8 +191,8 @@ choose_custom() {
 		"PKG_CORE|  core: zsh, git, curl, tmux, vim, less|y"
 		"PKG_EDIT|  editors & system: htop, btop, ncdu|y"
 		"PKG_TOOLS|  tools: ripgrep, fd, wget, man, ca-certificates|y"
-		"PKG_PI|  pi coding agent: nodejs, pi (npm)|y"
-		"DO_PI|  pi agent settings (~/.pi/agent/settings.json)|y"
+		"PKG_PI|  pi coding agent: nodejs, pi (npm)|n"
+		"DO_PI|  pi agent settings (~/.pi/agent/settings.json)|n"
 		"WITH_TAILSCALE|tailscale|n"
 	)
 	local row key label def answer
@@ -383,13 +390,7 @@ full | minimal | custom | tty) ;;
 esac
 flavor_apply "$FLAVOR"
 info "flavor: $FLAVOR"
-if [[ $FLAVOR == custom ]]; then
-	choose_custom
-elif [[ $FLAVOR == tty ]]; then
-	DO_PACKAGES=false
-	DO_DOTFILES=false
-	WITH_OMZ=false
-fi
+[[ $FLAVOR == custom ]] && choose_custom
 
 if $UNINSTALL; then
 	info "uninstalling tty links for $USER_NAME"
