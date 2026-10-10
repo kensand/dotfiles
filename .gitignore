@@ -46,9 +46,11 @@
 # Wallpaper script (submodule)
 !.config/Daily-Reddit-Wallpaper
 
-# fcli config (no secrets — the store is in the untracked ~/.f/f.creds.enc)
-!.config/f/
-!.config/f/f.config.json
+# fcli config lives at ~/.f/f.config.json, not ~/.config/f — f reads it from
+# there. No secrets: the encrypted store is the untracked ~/.f/f.creds.enc, and
+# the `*` rule above keeps every other entry in ~/.f ignored.
+!.f/
+!.f/f.config.json
 
 # Konsole profile
 !.local/share/konsole/

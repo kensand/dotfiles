@@ -2,7 +2,7 @@
   "ucks": [
     "https://github.com/kensand/fcli-ucks.git",
     {
-      "source": "https://github.com/kensand/kensand-fcli-ucks.git",
+      "source": "https://forgejo.kensand.net/kensand.net/kensand-fcli-ucks.git",
       "name": "kensand-fcli-ucks"
     }
   ],
@@ -11,5 +11,8 @@
       "name": "default",
       "path": "/home/kenny/.f/ucks/fcli-ucks/skills/default.md"
     }
-  ]
+  ],
+  "fj": {
+    "defaultHost": "https://forgejo.kensand.net"
+  }
 }

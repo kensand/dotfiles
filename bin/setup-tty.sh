@@ -740,11 +740,11 @@ if $DO_DOTFILES && $DO_PI && [[ -f "$DOTFILES_ROOT/.pi/agent/settings.json" ]]; 
 	fi
 	if have_cmd f; then
 		# Personal uck bucket (forged into the config the user keeps locally).
-		if [[ -f "$DOTFILES_ROOT/.config/f/f.config.json" ]] && ! grep -q kensand-fcli-ucks "$USER_HOME/.f/f.config.json" 2>/dev/null; then
+		if [[ -f "$DOTFILES_ROOT/.f/f.config.json" ]] && ! grep -q kensand-fcli-ucks "$USER_HOME/.f/f.config.json" 2>/dev/null; then
 			info "merging fcli uck bucket config..."
 			run as_user mkdir -p "$USER_HOME/.f"
 			run as_user cp -a "$USER_HOME/.f/f.config.json" "$USER_HOME/.f/f.config.json.bak" 2>/dev/null
-			run as_user cp -a "$DOTFILES_ROOT/.config/f/f.config.json" "$USER_HOME/.f/f.config.json"
+			run as_user cp -a "$DOTFILES_ROOT/.f/f.config.json" "$USER_HOME/.f/f.config.json"
 			run as_user f uck up 2>/dev/null || true
 		fi
 		# fj defaultHost is not tracked — inject it from creds (fj-default-host)
