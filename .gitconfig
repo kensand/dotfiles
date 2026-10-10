@@ -1,6 +1,6 @@
 [user]
-	email = git@kensand.net
 	name = kensand
+	email = git@kensand.net
 [core]
 	editor = vim
 	autocrlf = input
