@@ -6,15 +6,20 @@
     "npm:pi-mcp-adapter",
     "npm:@almegal/pi-file-browser",
     "npm:pi-subagents",
-    "npm:pi-effort"
+    "npm:pi-effort",
+    "npm:pi-voice-stt",
+    "git:forgejo.kensand.net/kensand.net/pi-tts"
   ],
   "lastChangelogVersion": "1.1.0",
   "theme": "dark",
-  "defaultProvider": "fennec",
+  "defaultProvider": "guanaco",
   "defaultModel": "ai",
   "defaultThinkingLevel": "off",
   "hideThinkingBlock": false,
   "extensions": [
     "-builtin:mcp"
+  ],
+  "skills": [
+    "~/.f/ucks"
   ]
 }
