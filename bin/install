@@ -14,6 +14,7 @@
 #
 #   1. layout     desktop  full Arch + Sway install          (default: desktop)
 #                 headless TTY/SSH-only host, any distro
+#                 (Termux/Android is auto-detected: always headless)
 #   2. packages   yes / no                                (default: yes)
 #   3. dotfiles   yes / no                                (default: yes)
 #   4. extras     (desktop only) tailscale, nvm/node, pi   (default: as usual)
@@ -33,12 +34,19 @@
 #   --no-chsh                  leave the login shell alone
 #   --tailscale                also install + enable tailscaled
 #   --no-oh-my-zsh             skip the oh-my-zsh clone
+#   --no-pi                    skip the pi coding agent + f creds section
 #   --dry-run                  print every command, change nothing
 #   --uninstall                remove the links this script made, restore backups
 #   -h, --help                 this text
 #
 # Idempotent: safe to re-run.  Skips what is already done, backs up anything it
 # replaces (to ~/.dotfiles-tty-backup or ~/.dotfiles-backup, never deletes).
+#
+# Termux (Android) is a first-class target: no root, no sudo, no systemd, no
+# pacman and no /etc/passwd. Detection is environmental ($PREFIX under
+# .../com.termux/, or ANDROID_ROOT + pkg on PATH). Packages go through `pkg`,
+# the home directory comes from $HOME, and the login shell is the
+# ~/.termux/shell symlink that termux-tools' chsh writes.
 # ─────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
@@ -58,6 +66,7 @@ DO_PACKAGES=""         # "" = ask / default true ; true|false after resolution
 DO_DOTFILES=""         # "" = ask / default true
 WITH_TAILSCALE=false
 WITH_OMZ=true
+NO_PI=false
 TARGET_USER=""
 REPO_URL="${DOTFILES_REPO_URL:-$DOTFILES_REPO}"
 BRANCH="${DOTFILES_BRANCH:-$GUESS_BRANCH}"
@@ -128,6 +137,7 @@ while [[ $# -gt 0 ]]; do
 	--no-chsh) NO_CHSH=true ;;
 	--tailscale) WITH_TAILSCALE=true ;;
 	--no-oh-my-zsh) WITH_OMZ=false ;;
+	--no-pi) NO_PI=true ;;
 	--dry-run | -n) DRY=true ;;
 	--uninstall) UNINSTALL=true ;;
 	-h | --help)
@@ -138,6 +148,24 @@ while [[ $# -gt 0 ]]; do
 	esac
 	shift
 done
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Termux (Android) — detected from the environment, not from os-release.
+#
+# Termux is not a distro: no /etc/os-release, no passwd entry for the user
+# ($USER is even empty), no root, no systemd, and its package manager is `pkg`
+# (apt+dpkg wired to $PREFIX, which refuses to run as root). Everything the
+# rest of this script answers with os-release/getent/sudo needs its own probe,
+# so detect it once, before the wizard asks about layouts.
+# ─────────────────────────────────────────────────────────────────────────────
+IS_TERMUX=false
+detect_termux() {
+	case "${PREFIX:-}${TERMUX_PREFIX:-}" in
+	*com.termux*) IS_TERMUX=true; return ;;
+	esac
+	[[ -n "${ANDROID_ROOT:-}" ]] && command -v pkg >/dev/null 2>&1 && IS_TERMUX=true
+}
+detect_termux
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Prompts — read from /dev/tty so sudo -E and curl | bash do not eat the answer.
@@ -192,7 +220,13 @@ run_wizard() {
 	# Nothing to ask: flags already pinned everything, or no TTY to ask on.
 	if ! $need_mode && ! $need_pkgs && ! $need_dots; then return 0; fi
 	if ! can_ask; then
-		$need_mode && { MODE=desktop; info "no TTY; assuming --mode desktop (pass --mode to choose)"; }
+		if $need_mode && $IS_TERMUX; then
+			MODE=headless
+			info "Termux (Android) detected: using the headless layout"
+		elif $need_mode; then
+			MODE=desktop
+			info "no TTY; assuming --mode desktop (pass --mode to choose)"
+		fi
 		$need_pkgs && DO_PACKAGES=true
 		$need_dots && DO_DOTFILES=true
 		return 0
@@ -201,7 +235,14 @@ run_wizard() {
 	info "dotfiles install — answer a few questions (Enter keeps the default):"
 	info ""
 
-	if $need_mode; then
+	if $need_mode && $IS_TERMUX; then
+		# No Sway session is possible inside Termux (no DRM/KMS master, no systemd
+		# session, no display server the app does not provide). Ask no question.
+		MODE=headless
+		info "Termux (Android) detected: using the headless layout (no Arch/Sway desktop)"
+	fi
+
+	if $need_mode && ! $IS_TERMUX; then
 		ask_choice "layout" 1 \
 			'    1) desktop   Arch + Sway/Wayland, full install' \
 			'    2) headless  TTY/SSH-only host, any distro'
@@ -241,6 +282,12 @@ fi
 # ALARM (Arch Linux ARM) identifies as ID=archarm with ID_LIKE=arch, and some
 # minimal/older builds fall back to ID=linux. Match arch, archarm, or any
 # distro that declares ID_LIKE containing "arch".
+if [[ "$MODE" == desktop && $IS_TERMUX == true ]]; then
+	warn "desktop layout needs a real Arch install: Termux has no pacman, no systemd,"
+	warn "  no display server, and no way to run a Sway session."
+	die "re-run with --mode headless (that is the Termux path)"
+fi
+
 if [[ "$MODE" == desktop ]]; then
 	arch_like=false
 	if [[ -r /etc/os-release ]]; then
@@ -265,11 +312,29 @@ if [[ $EUID -eq 0 && "$USER_NAME" == root && -z "${SUDO_USER:-}" && -z "$TARGET_
 	warn "  If this is a mistake, re-run as the intended user, or pass --user NAME."
 fi
 
-USER_HOME=$(getent passwd "$USER_NAME" | cut -d: -f6)
-[[ -n "$USER_HOME" && -d "$USER_HOME" ]] || die "cannot find a home directory for $USER_NAME"
+# Home of the target user. getent is the normal route; Termux (Android) ships no
+# passwd database at all, and minimal containers often lack the getent binary.
+USER_HOME=""
+if command -v getent >/dev/null 2>&1; then
+	USER_HOME=$(getent passwd "$USER_NAME" | cut -d: -f6)
+fi
+if [[ -z "$USER_HOME" || ! -d "$USER_HOME" ]]; then
+	# No usable passwd entry: the only safe answer is the caller's own $HOME,
+	# and only when the target user is the caller (always true on Termux, where
+	# id -un reports the Android uid name, e.g. u0_a221).
+	if [[ "$USER_NAME" == "$(id -un)" && -n "${HOME:-}" && -d "$HOME" ]]; then
+		USER_HOME="$HOME"
+	fi
+fi
+[[ -n "$USER_HOME" && -d "$USER_HOME" ]] ||
+	die "cannot find a home directory for $USER_NAME (no getent here; run as that user)"
 
 # Packages need root; config work must NOT be done as root (drops to USER_NAME).
 if [[ $EUID -eq 0 ]]; then
+	SUDO=""
+elif $IS_TERMUX; then
+	# Termux ships a sudo(1) in termux-tools, but pkg(1) refuses to run as root
+	# and there is no root to have anyway: every install stays the caller.
 	SUDO=""
 elif command -v sudo >/dev/null 2>&1; then
 	SUDO="sudo"
@@ -355,6 +420,7 @@ fi
 PKG=""
 detect_pkg() {
 	local id likes
+	if $IS_TERMUX; then PKG=termux; return; fi
 	if [[ -r /etc/os-release ]]; then
 		id=$(. /etc/os-release && echo "${ID:-}")
 		likes=$(. /etc/os-release && echo "${ID_LIKE:-}")
@@ -393,6 +459,10 @@ pkg_name() {
 	apt:fd | dnf:fd) echo fd-find ;;
 	apt:man-pages) echo manpages ;;
 	apk:man-db) echo busybox-extra ;;
+	# Termux has no man-db, no man-pages and no btop in its repos (vi and man
+	# come from busybox, tailscaled has no daemon to enable). "-" means drop
+	# the name: pkg_install_batch skips it out loud instead of failing apt.
+	termux:man-db | termux:man-pages | termux:man | termux:btop | termux:tailscaled) echo "-" ;;
 	*) echo "$1" ;;
 	esac
 }
@@ -404,14 +474,26 @@ pkg_installed() {
 	dnf) rpm -q "$1" >/dev/null 2>&1 ;;
 	zypper) rpm -q "$1" >/dev/null 2>&1 ;;
 	apk) apk info -e "$1" >/dev/null 2>&1 ;;
+	termux) dpkg -s "$1" >/dev/null 2>&1 ;;
 	*) return 1 ;;
 	esac
 }
 
 pkg_install_batch() {
-	local translated=() n
-	for n in "$@"; do translated+=("$(pkg_name "$n")"); done
+	local translated=() n name
+	for n in "$@"; do
+		name=$(pkg_name "$n")
+		if [[ "$name" == "-" ]]; then
+			skip "no '$n' package for $PKG"
+			continue
+		fi
+		translated+=("$name")
+	done
+	[[ ${#translated[@]} -gt 0 ]] || return 0
 	case "$PKG" in
+	# pkg is a bash wrapper over apt+dpkg pinned to $PREFIX. It refuses to run as
+	# root, so never prefix $SUDO here.
+	termux) run env DEBIAN_FRONTEND=noninteractive pkg install -y "${translated[@]}" ;;
 	pacman) run $SUDO pacman -S --noconfirm --needed "${translated[@]}" ;;
 	apt)
 		run env DEBIAN_FRONTEND=noninteractive $SUDO apt-get install -y --no-install-recommends "${translated[@]}"
@@ -452,7 +534,11 @@ if $UNINSTALL; then
 	done
 	echo ""
 	echo "Removed $removed link(s), restored $restored file(s) from $BACKUP_ROOT."
-	echo "Login shell was not changed back: run 'chsh -s /bin/bash' to leave zsh."
+	if $IS_TERMUX; then
+		echo "Login shell was not changed back: run 'chsh' (empty answer) to restore Termux's bash."
+	else
+		echo "Login shell was not changed back: run 'chsh -s /bin/bash' to leave zsh."
+	fi
 	echo "Left in place, delete when you are sure: $DOTDIR, ~/.oh-my-zsh"
 	exit 0
 fi
@@ -766,10 +852,11 @@ if $DO_PACKAGES; then
 	detect_pkg
 	if [[ -z "$PKG" ]]; then
 		warn "no supported package manager found; continuing with configs only"
-	elif [[ $EUID -ne 0 ]] && ! have_cmd sudo; then
+	elif [[ $EUID -ne 0 ]] && ! $IS_TERMUX && ! have_cmd sudo; then
 		warn "not root and sudo is missing; skipping packages"
 	else
 		case "$PKG" in
+		termux) info "pkg update..."; run pkg update ;;
 		apt) info "apt-get update..."; run $SUDO apt-get update -qq ;;
 		apk) info "apk update...";      run $SUDO apk update ;;
 		esac
@@ -870,6 +957,14 @@ if $DO_DOTFILES; then
 		info "copying tty bundle from $SOURCE_DIR..."
 		run as_user mkdir -p "$DOTDIR"
 		run as_user cp -a "$SOURCE_DIR/tty/." "$DOTDIR/tty/"
+		# The pi settings and the fcli config travel with the bundle too, or the
+		# pi section below has nothing to install on an offline host (same reason
+		# the sparse clone above checks out /.pi/ and /.f/).
+		for _sub in .pi .f; do
+			[[ -d "$SOURCE_DIR/$_sub" ]] || continue
+			run as_user mkdir -p "$DOTDIR/$_sub"
+			run as_user cp -a "$SOURCE_DIR/$_sub/." "$DOTDIR/$_sub/"
+		done
 		DOTFILES_ROOT="$DOTDIR"
 		[[ -d "$SOURCE_DIR/.git" ]] && MODE2=bundle-linked || MODE2=bundle
 	elif have_cmd git; then
@@ -892,7 +987,7 @@ if $DO_DOTFILES; then
 				plain_args=(--quiet --depth 1)
 				[[ -n "$try_branch" ]] && { clone_args+=(--branch "$try_branch"); plain_args+=(--branch "$try_branch"); }
 				if ! run as_user git clone "${clone_args[@]}" "$REPO_URL" "$DOTDIR" ||
-					! run as_user git -C "$DOTDIR" sparse-checkout set --no-cone '/tty/' '/bin/install' ||
+					! run as_user git -C "$DOTDIR" sparse-checkout set --no-cone '/tty/' '/bin/install' '/.pi/' '/.f/' ||
 					! run as_user git -C "$DOTDIR" checkout --quiet; then
 					warn "sparse clone of $label failed; retrying plain shallow"
 					run rm -rf "$DOTDIR"
@@ -975,7 +1070,7 @@ fi
 # ── 4b. pi coding agent (settings.json tracked; models.json from f creds) ────
 # The tracked .pi/agent/.gitignore whitelist blocks everything but settings.json
 # out of the clone. models.json lives in the f creds store (cred: pi-models).
-if $DO_DOTFILES && [[ -f "$DOTFILES_ROOT/.pi/agent/settings.json" ]]; then
+if $DO_DOTFILES && ! $NO_PI && [[ -f "$DOTFILES_ROOT/.pi/agent/settings.json" ]]; then
 	if ! have_cmd pi && ! have_cmd npm; then
 		info "node/npm not found; install node first — pi settings still get installed"
 	elif ! have_cmd pi && have_cmd npm; then
@@ -1017,9 +1112,14 @@ if $DO_DOTFILES && [[ -f "$DOTFILES_ROOT/.pi/agent/settings.json" ]]; then
 		if [[ -f "$DOTFILES_ROOT/.f/f.config.json" ]] && ! grep -q kensand-fcli-ucks "$USER_HOME/.f/f.config.json" 2>/dev/null; then
 			info "merging fcli uck bucket config..."
 			run as_user mkdir -p "$USER_HOME/.f"
-			run as_user cp -a "$USER_HOME/.f/f.config.json" "$USER_HOME/.f/f.config.json.bak" 2>/dev/null
+			# Backup only if there is something to back up: `cp` of a missing file is
+			# fatal under set -e, which killed the whole install on a fresh machine
+			# (a brand-new Termux, for instance, has no ~/.f at all).
+			if [[ -f "$USER_HOME/.f/f.config.json" ]]; then
+				run as_user cp -a "$USER_HOME/.f/f.config.json" "$USER_HOME/.f/f.config.json.bak"
+			fi
 			run as_user cp -a "$DOTFILES_ROOT/.f/f.config.json" "$USER_HOME/.f/f.config.json"
-			run as_user f uck up 2>/dev/null || true
+			run as_user f up 2>/dev/null || warn "'f up' failed; run it by hand to fetch the uck bucket"
 		fi
 		# fj defaultHost is not tracked — inject it from creds (fj-default-host)
 		# if the store is already unlocked, else leave it out.
@@ -1062,6 +1162,20 @@ if $DO_DOTFILES && ! $NO_CHSH; then
 	zsh_bin=$(command -v zsh || true)
 	if [[ -z "$zsh_bin" ]]; then
 		warn "zsh not installed; leaving the login shell alone"
+	elif $IS_TERMUX; then
+		# No /etc/passwd on Android: the Termux app reads the session shell from
+		# the ~/.termux/shell symlink, which termux-tools' chsh -s writes for us.
+		current_shell=$(readlink -m "$USER_HOME/.termux/shell" 2>/dev/null || true)
+		if [[ "$current_shell" == "$zsh_bin" ]]; then
+			skip "Termux login shell already $zsh_bin"
+		elif ! have_cmd chsh; then
+			warn "termux-tools' chsh is missing; make the link by hand:"
+			warn "  mkdir -p ~/.termux && ln -sf $zsh_bin ~/.termux/shell"
+		else
+			info "setting the Termux login shell to $zsh_bin (~/.termux/shell)..."
+			run as_user chsh -s "$zsh_bin" ||
+				warn "chsh failed; run 'chsh -s $zsh_bin' yourself"
+		fi
 	else
 		current_shell=$(getent passwd "$USER_NAME" | cut -d: -f7)
 		if [[ "$current_shell" == "$zsh_bin" ]]; then
@@ -1119,9 +1233,15 @@ if $DRY; then
 else
 	echo ""
 	echo "Next steps:"
-	echo "  1. log out and back in (or: exec zsh) to pick up the new shell + config"
-	echo "  2. SSH logins now land in tmux session 'ssh' and reattach on reconnect."
+	if $IS_TERMUX; then
+		echo "  1. restart the session (swipe the Termux notification -> HOME, or: exec zsh)"
+		echo "  2. the session shell is the ~/.termux/shell symlink (chsh -s zsh; chsh to undo)"
+	else
+		echo "  1. log out and back in (or: exec zsh) to pick up the new shell + config"
+		echo "  2. SSH logins now land in tmux session 'ssh' and reattach on reconnect."
+	fi
 	echo "       opt out per host:  echo 'DOTFILES_TMUX_AUTOATTACH=0' >> ~/.zshrc.local"
+	$IS_TERMUX && echo "       (no SSH_TTY inside Termux, so that hook stays inert here)"
 	echo "  3. machine-specific paths go in ~/.zshrc.local — see $DOTFILES_ROOT/tty/zshrc.local.example"
 	echo "  4. updates: checked every 13 days in the background, or run:"
 	echo "       ${DOTFILES_ROOT:-$HOME/.dotfiles}/tty/update.sh run"

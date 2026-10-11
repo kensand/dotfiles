@@ -55,7 +55,43 @@ Offline / no route to GitHub:
 bash /path/to/dotfiles/bin/install --source /path/to/dotfiles --mode headless
 ```
 
-Any invocation takes `--no-chsh` (leave the login shell alone) and `--dry-run` (print every command, change nothing).
+Any invocation takes `--no-chsh` (leave the login shell alone), `--no-pi` (skip the
+pi coding agent + f creds section) and `--dry-run` (print every command, change nothing).
+
+### Termux (Android)
+
+Termux is detected from the environment (`$PREFIX` under `.../com.termux/`, or
+`ANDROID_ROOT` plus `pkg` on PATH), so the same one-liner is the install path.
+There is no root here and there must not be one: `pkg` refuses to run as root,
+so the installer never prefixes `sudo` on Termux even though termux-tools ships
+a `sudo(1)`.
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/kensand/dotfiles/main/bin/install | bash
+```
+
+What differs on Android:
+
+| Normal host | Termux |
+| ----------- | ------ |
+| `/etc/os-release`, `sudo` | environmental detection, `$SUDO` always empty |
+| `apt` / `pacman` / `dnf` | `pkg install -y` (apt + dpkg pinned to `$PREFIX`) |
+| `getent passwd` for `$HOME` | `$HOME` (`/data/data/com.termux/files/home`); `$USER` is empty and there is no passwd database |
+| `chsh -s $(command -v zsh)` edits `/etc/passwd` | `chsh -s zsh` writes the `~/.termux/shell` symlink the app reads at session start |
+| `systemctl` | absent; every service step is skipped |
+
+The layout is always `headless`: Termux has no KMS/DRM master, no systemd user
+session and no display server, so `--mode desktop` stops with an error instead
+of installing a Sway stack that could never start. `man-db`, `man-pages`, `man`
+and `btop` are not in the Termux repos and are skipped by name (`man` and `vi`
+come from busybox). The tmux-on-SSH-login hook stays inert: inside Termux there
+is no `SSH_TTY`.
+
+Configs only, no prompts, no shell change:
+
+```sh
+bash bin/install --mode headless --no-packages --no-chsh --no-pi --source /path/to/dotfiles
+```
 
 ### Re-running on an existing system
 
@@ -95,6 +131,7 @@ Piped runs (`curl | bash` with no TTY) skip the wizard and use defaults: `deskto
 | Fedora / RHEL | dnf             | `fd` → `fd-find` |
 | SUSE          | zypper          | — |
 | Alpine        | apk             | `man-db` → `busybox-extra` (BusyBox has `man` built-in); `btop` may be absent on slim images and is skipped with a warning; requires `bash` (run `apk add bash curl` first on a bare image) |
+| Termux (Android) | `pkg` (apt + dpkg in `$PREFIX`) | headless layout only; no root, sudo, systemd or `/etc/passwd`; `man-db`/`man-pages`/`man`/`btop` skipped by name; login shell = `~/.termux/shell` |
 
 ## CPU architecture
 

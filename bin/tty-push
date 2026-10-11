@@ -225,14 +225,21 @@ fi
 
 # ── 2. ship the bundle (tty/ + the installer) ────────────────────────────────
 [[ -d "$REPO_ROOT/tty" ]] || die "$REPO_ROOT/tty not found — run this from your dotfiles repo"
-info "sending tty/ + install to $HOST:~/$BUNDLE_NAME"
+# The pi settings and the fcli config ride along so the pi section of the
+# installer has something to install on an air-gapped target; each path is
+# only tarred when this checkout actually has it.
+bundle_paths=(tty bin/install)
+for _extra in .pi/agent/settings.json .f/f.config.json; do
+	[[ -f "$REPO_ROOT/$_extra" ]] && bundle_paths+=("$_extra")
+done
+info "sending ${bundle_paths[*]} to $HOST:~/$BUNDLE_NAME"
 if $DRY; then
-	printf '  [dry] tar -C %s -cf - tty bin/install .pi/agent/settings.json | ssh %s %s -- "tar -C \$HOME/%s -xf -"\n' \
-		"$REPO_ROOT" "${SSH_OPTS[*]}" "$HOST" "$BUNDLE_NAME"
+	printf '  [dry] tar -C %s -cf - %s | ssh %s %s -- "tar -C \$HOME/%s -xf -"\n' \
+		"$REPO_ROOT" "${bundle_paths[*]}" "${SSH_OPTS[*]}" "$HOST" "$BUNDLE_NAME"
 else
 	ssh "${SSH_OPTS[@]}" "$HOST" \
 		"rm -rf \"\$HOME/$BUNDLE_NAME\" && mkdir -p \"\$HOME/$BUNDLE_NAME\" && tar -C \"\$HOME/$BUNDLE_NAME\" -xf -" \
-		< <(tar -C "$REPO_ROOT" -cf - tty bin/install .pi/agent/settings.json) ||
+		< <(tar -C "$REPO_ROOT" -cf - "${bundle_paths[@]}") ||
 		die "could not copy the bundle (does the target have tar?)"
 fi
 
