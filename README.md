@@ -96,6 +96,48 @@ Piped runs (`curl | bash` with no TTY) skip the wizard and use defaults: `deskto
 | SUSE          | zypper          | — |
 | Alpine        | apk             | `man-db` → `busybox-extra` (BusyBox has `man` built-in); `btop` may be absent on slim images and is skipped with a warning; requires `bash` (run `apk add bash curl` first on a bare image) |
 
+## CPU architecture
+
+`bin/install` reads `uname -m` and, on aarch64, `/proc/device-tree/compatible`.
+
+| Arch | Behaviour |
+| ---- | --------- |
+| x86_64 | Full install as before: `linux`/`linux-headers`, `amd-ucode`, `efibootmgr`, `vulkan-radeon`, all AUR packages |
+| aarch64 | No microcode blobs, no `efibootmgr`, **kernel packages untouched** (swapping a vendor/BSP kernel for mainline is the usual way to make a board unbootable — install your board's kernel explicitly). Graphics chosen from the SoC. AUR repos swapped for arm-built ones (below) and packages installed one-by-one so one failure does not abort the set |
+| other | Warns; the desktop list is only validated on x86_64/aarch64 |
+
+### Rockchip graphics
+
+There is no AMD/Intel GPU here — the driver depends on the Mali generation, so it
+is picked from the device tree:
+
+| SoC | GPU | Stack |
+| --- | --- | ----- |
+| RK3588 / 3588S | Mali-G610 (Valhall) | **panthor** kernel driver + Mesa with panthor support. Needs kernel 6.13+ or a BSP with the backport, plus the proprietary `/usr/lib/firmware/mali_csffw.bin` blob (from `linux-firmware`). `mesa-panfork` does *not* work on Valhall |
+| RK3399 | Mali-T860 (Midgard) | `mesa` panfrost |
+| RK3566 / RK3568 | Mali-G52 (Bifrost) | `mesa` panfrost |
+
+The installer reports what it found rather than assuming: it checks `/proc/devices`
+for a `panthor`/`panfrost` DRM node and warns if `mali_csffw.bin` is missing, since
+either condition means no GPU acceleration despite packages installing cleanly.
+
+### AUR on aarch64
+
+Vanilla AUR is unusable on arm: most PKGBUILDs declare `arch=('x86_64')` or download
+prebuilt x86 tarballs. The installer adds two arm-built repos to `pacman.conf`
+instead of compiling on-device (a full AUR build on an SBC takes hours):
+
+```
+[archlinuxcn]  Server = https://mirrors.tuna.tsinghua.edu.cn/archlinuxcn/$arch
+[7ji]          Server = https://github.com/7Ji/archrepo/releases/download/$arch
+```
+
+Anything still missing is skipped with a warning. Note `jetbrains-toolbox` is
+never attempted on arm — upstream ships x86_64 binaries only.
+
+The sway config guards its optional autostarts (`way-displays`, `sov`, `iwgtk`,
+`element-desktop`) with `command -v`, so a host without them starts normally.
+
 ## Wallpaper / theming
 
 `bin/chwall` fetches the top-of-day image from a subreddit (default `r/earthporn`, pass one to override), downloads the full-res original, regenerates the `wal` color scheme, and sets the Sway wallpaper — **no credentials required** (uses the public RSS feed).
@@ -135,7 +177,7 @@ On the desktop, `~/.zshrc` is a one-line `source "$HOME/tty/zshrc"`, so editing 
 | `.config/fuzzel/` | App launcher |
 | `.config/way-displays/` | Display manager (external monitor layouts) |
 | `.config/systemd/user/` | User systemd services |
-| `.config/Daily-Reddit-Wallpaper/` | Holds the current wallpaper image |
+| `.cache/chwall/` | Holds the current wallpaper image (chwall cache) |
 | `.config/oh-my-zsh/` | Submodule — zsh framework |
 | `.local/share/konsole/` | Konsole terminal profiles |
 | `.zshrc`, `.zsh_aliases` | Zsh config (`~/.zshrc` is a shim onto `tty/zshrc`; `~/.zshrc.local` is untracked) |

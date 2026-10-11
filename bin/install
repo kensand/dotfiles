@@ -291,6 +291,54 @@ info "install starting (mode: ${MODE:-uninstall}, user: $USER_NAME, home: $USER_
 $DRY && info "dry run: nothing will change"
 
 # ─────────────────────────────────────────────────────────────────────────────
+# CPU architecture detection
+#
+# Everything arch-specific in this script keys off CPU_ARCH. The desktop package
+# list was written for one x86_64 laptop, so the aarch64 path is materially
+# different: no microcode blobs, no AMD GPU driver, no x86-only AUR builds, and
+# a Rockchip GPU stack that has to match the Mali generation in the SoC.
+# ─────────────────────────────────────────────────────────────────────────────
+CPU_ARCH=$(uname -m)
+case "$CPU_ARCH" in
+	x86_64)          ARCH_FAMILY=x86 ;;	i686 | i386)       ARCH_FAMILY=x86 ;;	aarch64 | arm64) ARCH_FAMILY=arm ;;	armv7* | armv6*) ARCH_FAMILY=arm ;;	*)               ARCH_FAMILY=other ;;
+esac
+
+# On aarch64 we assume Arch Linux ARM (ALARM), whose repos differ from archlinux.
+# Warn loudly if the repo layout says otherwise, since package names resolve
+# against whichever repos pacman is actually configured with.
+if [[ "$ARCH_FAMILY" == arm && -r /etc/pacman.conf ]]; then
+	if ! grep -qE '^\s*Architecture\s*=\s*.*(aarch64|armv)' /etc/pacman.conf 2>/dev/null; then
+		warn "aarch64 host but /etc/pacman.conf declares no arm Architecture — package names may not resolve"
+	fi
+fi
+
+# Detect the Rockchip SoC so we can pick a GPU driver that matches the Mali
+# generation. RK3399/RK356x use Mali midgard/bifrost (panfrost directly);
+# RK3588 uses Mali-G610 (Valhall), which needs the panthor kernel driver plus
+# Mesa built with panthor support, plus the proprietary mali_csffw.bin blob.
+CHIP_FAMILY=""
+if [[ "$ARCH_FAMILY" == arm ]]; then
+	for f in /proc/device-tree/compatible /sys/firmware/devicetree/base/compatible; do
+		[[ -r "$f" ]] || continue
+		if tr '\0' '\n' <"$f" 2>/dev/null | grep -qiE 'rockchip,rk3588'; then
+			CHIP_FAMILY=rk3588
+		elif tr '\0' '\n' <"$f" 2>/dev/null | grep -qiE 'rockchip,rk3399'; then
+			CHIP_FAMILY=rk3399
+		elif tr '\0' '\n' <"$f" 2>/dev/null | grep -qiE 'rockchip,rk356[68]'; then
+			CHIP_FAMILY=rk356x
+		elif tr '\0' '\n' <"$f" 2>/dev/null | grep -qi rockchip; then
+			CHIP_FAMILY=rockchip-other
+		fi
+		[[ -n "$CHIP_FAMILY" ]] && break
+	done
+fi
+info "architecture: $CPU_ARCH (family: $ARCH_FAMILY${CHIP_FAMILY:+, chip: $CHIP_FAMILY})"
+
+if [[ "$ARCH_FAMILY" == other ]]; then
+	warn "unrecognised CPU architecture '$CPU_ARCH'; the desktop package list is only validated on x86_64 and aarch64"
+fi
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Package manager detection (headless mode; desktop is Arch/pacman by definition)
 # ─────────────────────────────────────────────────────────────────────────────
 PKG=""
@@ -407,7 +455,7 @@ if [[ "$MODE" == desktop ]]; then
 		[[ $EUID -eq 0 ]] || die "desktop packages need root: re-run with sudo -E, or pass --no-packages"
 
 		pacman_install() {
-			local pkgs=("$@") plan count
+			local pkgs=("$@") plan count missing=()
 			if plan=$(pacman -S --noconfirm --needed --print "${pkgs[@]}" 2>/dev/null); then
 				count=$(echo "$plan" | grep -c '^/usr/' || true)
 				if [[ "$count" -eq 0 ]]; then
@@ -417,14 +465,47 @@ if [[ "$MODE" == desktop ]]; then
 				info "installing $count package(s) (rest already present)"
 				pacman -S --noconfirm --needed "${pkgs[@]}"
 			else
-				warn "pre-check failed for: ${pkgs[*]} — attempting install anyway"
-				pacman -S --noconfirm --needed "${pkgs[@]}"
+				# One unresolvable name fails the whole --print batch. That is the
+				# normal case on aarch64, where several packages in the original
+				# x86-only list simply do not exist. Fall back to resolving each name
+				# separately so one absent package does not lose the whole group.
+				warn "pre-check failed for batch, resolving individually: ${pkgs[*]}"
+				local p keep=()
+				for p in "${pkgs[@]}"; do
+					if pacman -S --noconfirm --needed --print "$p" >/dev/null 2>&1; then
+						keep+=("$p")
+					else
+						missing+=("$p")
+					fi
+				done
+				if [[ ${#missing[@]} -gt 0 ]]; then
+					skip "not available for $CPU_ARCH: ${missing[*]}"
+				fi
+				if [[ ${#keep[@]} -gt 0 ]]; then
+					info "installing ${#keep[@]} available package(s)"
+					pacman -S --noconfirm --needed "${keep[@]}"
+				fi
 			fi
 		}
 
 		info "system essentials..."
-		pacman_install base base-devel linux linux-headers linux-firmware \
-			amd-ucode efibootmgr openssh systemd-resolvconf man-db man-pages \
+		# Kernel + microcode are the two items that are wholly wrong on arm:
+		#   - 'linux' is mainline; RK3588 needs a kernel with panthor + the right
+		#     DTBs, which mainline linux-aarch64 may not carry for your board.
+		#   - amd-ucode/intel-ucode are x86 CPU microcode; they do not exist on arm.
+		#   - efibootmgr assumes EFI, which most Rockchip boards boot via U-Boot
+		#     or a vendor loader rather than EFI (and efibootmgr itself is x86-only
+		#     in practice on ALARM).
+		if [[ "$ARCH_FAMILY" == x86 ]]; then
+			pacman_install base base-devel linux linux-headers linux-firmware \
+				amd-ucode efibootmgr
+		else
+			# Do not force a kernel on arm: replacing the working vendor/BSP kernel
+			# with a mainline one is the usual way to make a board unbootable.
+			info "arm host: leaving kernel packages alone (install your board's kernel explicitly)"
+			pacman_install base base-devel linux-firmware
+		fi
+		pacman_install openssh systemd-resolvconf man-db man-pages \
 			wget unzip zip bc screen git zsh vim nano btop htop lsof lshw \
 			usbutils smartmontools fd ripgrep tree neovim jq
 
@@ -440,6 +521,9 @@ if [[ "$MODE" == desktop ]]; then
 		pacman_install iwd dnsmasq wireguard-tools tailscale blueman
 
 		info "applications..."
+		# Firefox is in the ALARM repos; chromium / element-desktop / discord are
+		# x86-only upstream builds. signal-desktop ships an aarch64 build.
+		# pacman_install now skips names that do not resolve, so listing them is safe.
 		pacman_install firefox chromium thunderbird element-desktop signal-desktop \
 			discord konsole kitty
 
@@ -477,8 +561,49 @@ if [[ "$MODE" == desktop ]]; then
 		pacman_install fdupes progress pv ncdu flameshot simple-scan \
 			gvfs-mtp exfat-utils squashfuse sshfs
 
-		info "AMD graphics drivers..."
-		pacman -S --noconfirm --needed vulkan-radeon
+		# ── graphics drivers ─────────────────────────────────────────
+		# x86_64: the AMD GPU in the original machine.
+		# aarch64: Rockchip has no AMD/Intel GPU. The open-source driver choice
+		# depends entirely on the Mali generation, so key it off CHIP_FAMILY.
+		if [[ "$ARCH_FAMILY" == x86 ]]; then
+			info "AMD graphics drivers..."
+			pacman -S --noconfirm --needed vulkan-radeon
+		elif [[ "$ARCH_FAMILY" == arm ]]; then
+			# linux-firmware (installed above) provides mali_csffw.bin, the
+			# proprietary scheduler blob Panfrost/Panthor still requires on Valhall.
+			case "$CHIP_FAMILY" in
+			rak3588)
+				info "RK3588 graphics: Mali-G610 (Valhall) via Panfrost/Panthor..."
+				# Vulkan on Valhall needs a Mesa newer than most stable tags, hence
+				# the -git variants; pacman_install skips whichever do not resolve.
+				pacman_install mesa mesa-vulkan-drivers vulkan-icd-loader \
+					vulkan-tools
+				# panthor is a kernel driver (CONFIG_DRM_PANTHOR); surface its status
+				# rather than silently installing a GL stack that cannot bind.
+				if grep -q panthor /proc/devices 2>/dev/null; then
+					info "panthor DRM node present"
+				elif grep -q panfrost /proc/devices 2>/dev/null; then
+					warn "panfrost node present but no panthor on RK3588 — Valhall wants a kernel with CONFIG_DRM_PANTHOR (6.13+, or a BSP with the backport)"
+				else
+					warn "no panfrost/panthor DRM node — GPU acceleration will not work on this kernel"
+				fi
+				if [[ -e /usr/lib/firmware/mali_csffw.bin ]]; then
+					info "mali_csffw.bin firmware present"
+				else
+					warn "missing /usr/lib/firmware/mali_csffw.bin — the Mali GPU cannot start without it"
+				fi
+				;;
+			rak3399 | rk356x)
+				info "${CHIP_FAMILY} graphics: Mali via Panfrost..."
+				pacman_install mesa mesa-vulkan-drivers vulkan-icd-loader vulkan-tools
+				;;
+			*)
+				warn "unrecognised ARM board; installing generic mesa + vulkan tools"
+				pacman_install mesa mesa-vulkan-drivers vulkan-icd-loader vulkan-tools
+				warn "if this is a Rockchip board, check the Mali driver and DTB for your exact model"
+				;;
+			esac
+		fi
 
 		# AUR: bootstrap paru, then install the rest
 		if ! command -v paru &>/dev/null; then
@@ -499,9 +624,61 @@ if [[ "$MODE" == desktop ]]; then
 		fi
 
 		info "AUR packages..."
-		sudo -u "$USER_NAME" paru -S --noconfirm --needed \
-			way-displays pw-volume sov libinput-gestures iwgtk \
-			python-pywal ttf-font-awesome-4 jetbrains-toolbox
+		# On aarch64, vanilla AUR is a trap: most PKGBUILDS declare
+		# arch=('x86_64') or ship prebuilt x86 tarballs, so paru either refuses or
+		# installs a binary that cannot exec. Two prebuilt-binary-free, arm-built
+		# repos cover most of what this list needs:
+		#   - archlinuxcn aarch64: confirmed to carry a real aarch64 database
+		#   - 7Ji: arm-built AUR re-published as a signed pacman repo
+		# Both are added to pacman.conf so pacman resolves them natively rather
+		# than building on-device (a full AUR compile on an SBC is hours).
+		if [[ "$ARCH_FAMILY" == arm ]]; then
+			info "aarch64: wiring up arm-built AUR replacement repos..."
+			add_repo() {
+				local name="$1" server="$2"
+				if grep -qE "^\s*\[$name\]" /etc/pacman.conf; then
+					skip "repo [$name] already configured"
+					return 0
+				fi
+				# Build the stanza without a heredoc: this file is tab-indented and
+				# an indented terminator would not end the block.
+				run $SUDO sh -c 'printf "\n[%s]\nServer = %s\n" "$1" "$2" >>"$3"' _ "$name" "$server" /etc/pacman.conf
+				info "added repo [$name]"
+			}
+			add_repo archlinuxcn 'https://mirrors.tuna.tsinghua.edu.cn/archlinuxcn/$arch'
+			add_repo 7ji 'https://github.com/7Ji/archrepo/releases/download/$arch'
+			# archlinuxcn/7ji are unsigned until their keyrings are present; install
+			# keyrings first with SigLevel=Never only if the keyring is unavailable.
+			if ! pacman -Sq --quiet archlinuxcn-keyring >/dev/null 2>&1; then
+				info "installing archlinuxcn-keyring (may need --no-verify initially)..."
+				run $SUDO pacman -S --noconfirm --needed archlinuxcn-keyring ||
+					warn "archlinuxcn-keyring failed — sign the keys or set SigLevel=Never for [archlinuxcn]"
+			fi
+			run $SUDO pacman -Sy
+		fi
+
+		# jetbrains-toolbox downloads a prebuilt x86_64 AppImage-style bundle; it
+		# cannot work on arm regardless of repo. Everything else is either pure
+		# Python/shell (pw-volume, python-pywal, libinput-gestures, sov) or
+		# compiles fine (way-displays, iwgtk), so those are worth attempting.
+		aur_pkgs=(way-displays pw-volume sov libinput-gestures iwgtk
+			python-pywal ttf-font-awesome-4)
+		if [[ "$ARCH_FAMILY" != arm ]]; then
+			aur_pkgs+=(jetbrains-toolbox)
+		else
+			skip "jetbrains-toolbox: upstream ships x86_64 binaries only"
+		fi
+		# Install one-by-one on arm so one unbuildable package does not abort the set.
+		if [[ "$ARCH_FAMILY" == arm ]]; then
+			aur_failed=()
+			for p in "${aur_pkgs[@]}"; do
+				sudo -u "$USER_NAME" paru -S --noconfirm --needed "$p" || aur_failed+=("$p")
+			done
+			[[ ${#aur_failed[@]} -gt 0 ]] &&
+				warn "AUR packages not installed on $CPU_ARCH: ${aur_failed[*]}"
+		else
+			sudo -u "$USER_NAME" paru -S --noconfirm --needed "${aur_pkgs[@]}"
+		fi
 
 		info "enabling system services..."
 		systemctl enable sddm

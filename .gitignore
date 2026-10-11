@@ -76,3 +76,4 @@
 !bin/*/*
 bin/jetbrains-toolbox
 .vim/.netrwhist
+.cache/chwall/

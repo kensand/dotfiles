@@ -20,15 +20,14 @@ bar {
   hidden_state hide
 }
 
-output DP-10 pos 0 0 res 2560x1440@59.95100Hz
-output DP-10 scale 1 
-output DP-10 adaptive_sync off
-output DP-9 pos 2560 0 res 2560x1440@59.95100Hz 
-output DP-9 scale 1
-output DP-9 adaptive_sync off
-output eDP-1 pos 5120 0 res 2256x1504@59.99900Hz 
-output eDP-1 scale 1
-output eDP-1 adaptive_sync off
+# Layout is computed dynamically by ~/bin/sway-apply-layout
+# (monitors matched by make/model/serial; re-applied on every hotplug event).
+output * adaptive_sync off
+exec_always $HOME/bin/sway-apply-layout
+exec_always $HOME/bin/sway-apply-layout --watch
+
+# Toggle Dell 4K <-> presented 2K (re-layouts + chwall automatically)
+bindsym Ctrl+$mod+Shift+s exec $HOME/bin/sway-present
 
 default_border pixel 10
 hide_edge_borders smart
@@ -39,6 +38,12 @@ for_window [window_role="bubble"] floating enable
 for_window [window_role="dialog"] floating enable
 for_window [window_type="dialog"] floating enable
 # Notification Daemon
+# ── autostart guards ───────────────────────────────────────────────────────
+# Optional helpers below are wrapped in `command -v` checks. On an aarch64 /
+# Rockchip host several of these do not exist (way-displays, sov and iwgtk are
+# AUR packages with no aarch64 build), and sway runs `exec` via /bin/sh, so a
+# missing binary fails silently and leaves half-started pipelines. The guard
+# makes the fallback explicit instead.
 exec swaync
 
 # Toggle control center
@@ -255,17 +260,20 @@ bindsym $mod+Shift+Tab workspace prev_on_output
 
 #exec swayidle -w timeout 600 'swaymsg "output * dpms off"' timeout 600 'swaylock -f -c 000000' timeout 1200 'systemctl suspend' resume 'swaymsg "output * dpms on"' before-sleep 'swaylock -f -c 000000'
 exec swayidle -w timeout 900 'swaylock -f -c 000000' timeout 900 'systemctl suspend' resume 'swaymsg "output * dpms on"' before-sleep 'swaylock -f -c 000000'
-exec way-displays > /tmp/way-displays.${XDG_VTNR}.${USER}.log 2>&1
+# way-displays is AUR-only with no aarch64 build; where it is absent, sway's own
+# output handling still applies because sway-apply-layout lays out monitors above.
+exec sh -c 'command -v way-displays >/dev/null 2>&1 && way-displays > /tmp/way-displays.${XDG_VTNR}.${USER}.log 2>&1'
 exec blueman-applet
-exec iwgtk -i
+exec sh -c 'command -v iwgtk >/dev/null 2>&1 && iwgtk -i'
 exec export XDG_CURRENT_DESKTOP=sway && /usr/lib/xdg-desktop-portal -r & /usr/lib/xdg-desktop-portal-wlr
 exec --no-startup-id /usr/lib/polkit-kde-authentication-agent-1
 exec gnome-keyring-daemon --start --foreground --components=secrets
-exec --no-startup-id swaymsg 'workspace 0; exec thunderbird;'
-exec --no-startup-id swaymsg 'workspace 9; exec element-desktop;'
+exec --no-startup-id sh -c 'command -v thunderbird >/dev/null 2>&1 && swaymsg "workspace 0; exec thunderbird;"'
+# element-desktop ships no aarch64 build upstream
+exec --no-startup-id sh -c 'command -v element-desktop >/dev/null 2>&1 && swaymsg "workspace 9; exec element-desktop;"'
 exec --no-startup-id swaymsg 'workspace 1; exec firefox;'
 
-exec rm -f /tmp/sovpipe && mkfifo /tmp/sovpipe && tail -f /tmp/sovpipe | sov -t 500
+exec --no-startup-id sh -c 'command -v sov >/dev/null 2>&1 && { rm -f /tmp/sovpipe && mkfifo /tmp/sovpipe && tail -f /tmp/sovpipe | sov -t 500; }'
 bindsym --no-repeat $mod exec "echo 1 > /tmp/sovpipe"
 bindsym --release $mod exec "echo 0 > /tmp/sovpipe"
 
