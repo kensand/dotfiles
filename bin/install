@@ -1,0 +1,964 @@
+#!/bin/bash
+# ─────────────────────────────────────────────────────────────────────────────
+# install — the single entry point for this dotfiles repo.
+#
+# One script, two layouts, every distro we care about. Run it as the user who
+# will log in, or as root via sudo -E; it works the same either way.
+#
+#   bash bin/install                    # interactive wizard (the normal path)
+#   curl -fsSL …/bin/install | bash    # wizard, if stdin is a TTY; otherwise
+#                                      #   runs with all defaults (headless)
+#   curl -fsSL …/bin/install | sudo -E bash -s -- --mode desktop   # force
+#
+# What it asks (only when stdin is a TTY — piped/CI runs use defaults + flags):
+#
+#   1. layout     desktop  full Arch + Sway install          (default: desktop)
+#                 headless TTY/SSH-only host, any distro
+#   2. packages   yes / no                                (default: yes)
+#   3. dotfiles   yes / no                                (default: yes)
+#   4. extras     (desktop only) tailscale, nvm/node, pi   (default: as usual)
+#   5. (headless, any distro without sudo -E) target user
+#
+# Non-interactive: every question falls back to its default, and flags override
+# any of them.  There is no "answer a question with a flag" layer beyond that:
+#   --mode desktop|headless    skip question 1
+#   --no-packages              skip question 2 (packages off)
+#   --no-dotfiles              skip question 3 (dotfiles off)
+#   --user NAME                who to install for, when running as root
+#   --repo-url URL             clone source
+#   --branch NAME              branch to track
+#   --source DIR               offline: install from a local checkout instead
+#                              of cloning (needs DIR/tty/zshrc)
+#   --copy                     copy into $HOME instead of symlinking
+#   --no-chsh                  leave the login shell alone
+#   --tailscale                also install + enable tailscaled
+#   --no-oh-my-zsh             skip the oh-my-zsh clone
+#   --dry-run                  print every command, change nothing
+#   --uninstall                remove the links this script made, restore backups
+#   -h, --help                 this text
+#
+# Idempotent: safe to re-run.  Skips what is already done, backs up anything it
+# replaces (to ~/.dotfiles-tty-backup or ~/.dotfiles-backup, never deletes).
+# ─────────────────────────────────────────────────────────────────────────────
+set -euo pipefail
+
+DOTFILES_REPO="https://github.com/kensand/dotfiles.git"
+OMZ_REPO="https://github.com/robbyrussell/oh-my-zsh.git"
+OMZ_BRANCH="master"
+
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)
+GUESS_BRANCH=$(git -C "$SCRIPT_DIR" rev-parse --abbrev-ref HEAD 2>/dev/null || true)
+[[ -n "$GUESS_BRANCH" && "$GUESS_BRANCH" != HEAD ]] || GUESS_BRANCH=""
+
+# ─────────────────────────────────────────────────────────────────────────────
+# State — flags set these; the wizard fills in the rest from prompts or defaults
+# ─────────────────────────────────────────────────────────────────────────────
+MODE=""                # desktop | headless ; empty = ask (or default desktop)
+DO_PACKAGES=""         # "" = ask / default true ; true|false after resolution
+DO_DOTFILES=""         # "" = ask / default true
+WITH_TAILSCALE=false
+WITH_OMZ=true
+TARGET_USER=""
+REPO_URL="${DOTFILES_REPO_URL:-$DOTFILES_REPO}"
+BRANCH="${DOTFILES_BRANCH:-$GUESS_BRANCH}"
+SOURCE_DIR=""
+COPY_FILES=false
+NO_CHSH=false
+DRY=false
+UNINSTALL=false
+
+info() { echo "==> $1"; }
+skip() { echo "==> [skip] $1"; }
+warn() { echo "==> WARNING: $1"; }
+die() { echo "==> ERROR: $1" >&2; exit 1; }
+
+# Echoes the command instead of running it under --dry-run.
+run() {
+	if $DRY; then
+		printf '  [dry] %s\n' "$*"
+		return 0
+	fi
+	"$@"
+}
+
+trap 'echo "==> ERROR: install failed at line $LINENO (last command exited $?). See above." >&2' ERR
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Args
+# ─────────────────────────────────────────────────────────────────────────────
+need_arg() { [[ -n "${2:-}" ]] || die "$1 needs a value"; }
+
+while [[ $# -gt 0 ]]; do
+	case "$1" in
+	--mode)
+		need_arg "$1" "${2:-}"
+		MODE="$2"
+		shift
+		;;
+	--packages) DO_PACKAGES=true ;;
+	--no-packages) DO_PACKAGES=false ;;
+	--dotfiles) DO_DOTFILES=true ;;
+	--no-dotfiles) DO_DOTFILES=false ;;
+	--user)
+		need_arg "$1" "${2:-}"
+		TARGET_USER="$2"
+		shift
+		;;
+	--target-user)
+		need_arg "$1" "${2:-}"
+		TARGET_USER="$2"
+		shift
+		;;
+	--repo-url)
+		need_arg "$1" "${2:-}"
+		REPO_URL="$2"
+		shift
+		;;
+	--branch)
+		need_arg "$1" "${2:-}"
+		BRANCH="$2"
+		shift
+		;;
+	--source)
+		need_arg "$1" "${2:-}"
+		SOURCE_DIR="$2"
+		shift
+		;;
+	--copy) COPY_FILES=true ;;
+	--no-chsh) NO_CHSH=true ;;
+	--tailscale) WITH_TAILSCALE=true ;;
+	--no-oh-my-zsh) WITH_OMZ=false ;;
+	--dry-run | -n) DRY=true ;;
+	--uninstall) UNINSTALL=true ;;
+	-h | --help)
+		sed -n '2,/^# ─*$/p' "${BASH_SOURCE[0]}" | sed '1d;s/^# \{0,1\}//'
+		exit 0
+		;;
+	*) die "unknown argument: $1 (try --help)" ;;
+	esac
+	shift
+done
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Prompts — read from /dev/tty so sudo -E and curl | bash do not eat the answer.
+# If /dev/tty is not available (CI, container without a terminal) every prompt
+# returns its default and the wizard degrades to a silent run with defaults.
+# ─────────────────────────────────────────────────────────────────────────────
+# /dev/tty passes stat checks even when there is no controlling terminal
+# (sandbox, some containers).  The real test is whether open() succeeds.
+can_ask() {
+	[[ -c /dev/tty ]] || return 1
+	( exec 3</dev/tty ) 2>/dev/null
+	return $?
+}
+
+ask_yn() {
+	# ask_yn "label" "y|n"   → sets REPLY_YN to true|false
+	local label="$1" def="$2" answer=""
+	if can_ask; then
+		read -r -p "  $label [${def}]: " answer </dev/tty || answer=""
+	fi
+	answer=${answer:-$def}
+	case "$answer" in
+	[yY] | [yY]es) REPLY_YN=true ;;
+	*) REPLY_YN=false ;;
+	esac
+}
+
+ask_choice() {
+	# ask_choice "label" "1" "menu lines"  → sets REPLY_CHOICE
+	local label="$1" def="$2" menu="$3" answer=""
+	if can_ask; then
+		printf '%s\n' "$menu" >&2
+		read -r -p "  $label [$def]: " answer </dev/tty || answer=""
+	fi
+	answer=${answer:-$def}
+	REPLY_CHOICE="$answer"
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Wizard — runs only when the caller did not pin every decision with flags.
+# Piped/CI runs (no /dev/tty) fall through with defaults: mode=desktop,
+# packages=true, dotfiles=true.  Override with --mode, --no-packages, etc.
+# ─────────────────────────────────────────────────────────────────────────────
+run_wizard() {
+	[[ $UNINSTALL == true ]] && return 0   # uninstall path does not need the wizard
+
+	local need_mode=false need_pkgs=false need_dots=false
+	[[ -z "$MODE" ]] && need_mode=true
+	[[ -z "$DO_PACKAGES" ]] && need_pkgs=true
+	[[ -z "$DO_DOTFILES" ]] && need_dots=true
+
+	# Nothing to ask: flags already pinned everything, or no TTY to ask on.
+	if ! $need_mode && ! $need_pkgs && ! $need_dots; then return 0; fi
+	if ! can_ask; then
+		$need_mode && { MODE=desktop; info "no TTY; assuming --mode desktop (pass --mode to choose)"; }
+		$need_pkgs && DO_PACKAGES=true
+		$need_dots && DO_DOTFILES=true
+		return 0
+	fi
+
+	info "dotfiles install — answer a few questions (Enter keeps the default):"
+	info ""
+
+	if $need_mode; then
+		ask_choice "layout" 1 \
+			'    1) desktop   Arch + Sway/Wayland, full install' \
+			'    2) headless  TTY/SSH-only host, any distro'
+		case "$REPLY_CHOICE" in
+		2) MODE=headless ;;
+		*) MODE=desktop ;;
+		esac
+	fi
+
+	if $need_pkgs; then
+		ask_yn "install packages?" y
+		DO_PACKAGES=$REPLY_YN
+	fi
+
+	if $need_dots; then
+		ask_yn "install dotfiles (zsh + tmux configs)?" y
+		DO_DOTFILES=$REPLY_YN
+	fi
+}
+
+run_wizard
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Who and where
+# ─────────────────────────────────────────────────────────────────────────────
+USER_NAME=""
+if [[ -n "$TARGET_USER" ]]; then
+	USER_NAME="$TARGET_USER"
+elif [[ -n "${SUDO_USER:-}" ]]; then
+	USER_NAME="$SUDO_USER"
+else
+	USER_NAME="${USER:-$(id -un)}"
+fi
+
+# Desktop mode on a non-Arch host is a hard stop: the package list is Arch-only
+# (pacman + AUR + sway). Headless mode is distro-agnostic and works everywhere.
+if [[ "$MODE" == desktop ]]; then
+	if ! command -v pacman >/dev/null 2>&1 && [[ ! -r /etc/os-release ]] || \
+	   ! (. /etc/os-release 2>/dev/null && [[ "${ID:-}" == arch ]]); then
+		warn "desktop mode requires Arch Linux (pacman). This host is not Arch."
+		warn "  Re-run with --mode headless for a distro-agnostic TTY/SSH install."
+		die "desktop mode is Arch-only; pass --mode headless"
+	fi
+fi
+
+# Root without SUDO_USER or --user: almost always a mistake on a real host.
+# Containers (id -un = root, no SUDO_USER) are the intended exception.
+if [[ $EUID -eq 0 && "$USER_NAME" == root && -z "${SUDO_USER:-}" && -z "$TARGET_USER" ]]; then
+	warn "running as root with no SUDO_USER or --user: installing into /root."
+	warn "  If this is a mistake, re-run as the intended user, or pass --user NAME."
+fi
+
+USER_HOME=$(getent passwd "$USER_NAME" | cut -d: -f6)
+[[ -n "$USER_HOME" && -d "$USER_HOME" ]] || die "cannot find a home directory for $USER_NAME"
+
+# Packages need root; config work must NOT be done as root (drops to USER_NAME).
+if [[ $EUID -eq 0 ]]; then
+	SUDO=""
+elif command -v sudo >/dev/null 2>&1; then
+	SUDO="sudo"
+else
+	SUDO=""
+fi
+
+# Run as USER_NAME, whether or not we started as root. Root→root (containers)
+# needs no drop; root→user needs sudo -u.
+as_user() {
+	if [[ $EUID -eq 0 && "$USER_NAME" != root ]]; then
+		have_cmd sudo ||
+			die "running as root for $USER_NAME but sudo is missing; run this as $USER_NAME directly"
+		sudo -u "$USER_NAME" "$@"
+	else
+		"$@"
+	fi
+}
+
+have_cmd() {
+	local c
+	for c in "$@"; do command -v "$c" >/dev/null 2>&1 && return 0; done
+	return 1
+}
+
+DOTDIR="$USER_HOME/.dotfiles"
+BACKUP_ROOT="$USER_HOME/.dotfiles-tty-backup"
+
+info "install starting (mode: ${MODE:-uninstall}, user: $USER_NAME, home: $USER_HOME)"
+$DRY && info "dry run: nothing will change"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Package manager detection (headless mode; desktop is Arch/pacman by definition)
+# ─────────────────────────────────────────────────────────────────────────────
+PKG=""
+detect_pkg() {
+	local id likes
+	if [[ -r /etc/os-release ]]; then
+		id=$(. /etc/os-release && echo "${ID:-}")
+		likes=$(. /etc/os-release && echo "${ID_LIKE:-}")
+	else
+		id=""; likes=""
+	fi
+	for c in $id $likes; do
+		case "$c" in
+		arch) PKG=pacman; return ;;
+		debian | ubuntu) PKG=apt; return ;;
+		fedora | rhel | centos | amzn) PKG=dnf; return ;;
+		suse | opensuse*) PKG=zypper; return ;;
+		alpine) PKG=apk; return ;;
+		esac
+	done
+	local m
+	for m in pacman apt-get dnf yum zypper apk xbps-install; do
+		command -v "$m" >/dev/null 2>&1 && {
+			case "$m" in
+			pacman) PKG=pacman ;;
+			apt-get) PKG=apt ;;
+			dnf | yum) PKG=dnf ;;
+			zypper) PKG=zypper ;;
+			apk) PKG=apk ;;
+			esac
+			return
+		}
+	done
+	PKG=""
+}
+
+# One canonical name per tool; some distros renamed them.
+pkg_name() {
+	case "$PKG:$1" in
+	apt:fd | dnf:fd) echo fd-find ;;
+	apt:man-pages) echo manpages ;;
+	apk:man-db) echo busybox-extra ;;
+	*) echo "$1" ;;
+	esac
+}
+
+pkg_installed() {
+	case "$PKG" in
+	pacman) pacman -Qi "$1" >/dev/null 2>&1 ;;
+	apt) dpkg -s "$1" >/dev/null 2>&1 ;;
+	dnf) rpm -q "$1" >/dev/null 2>&1 ;;
+	zypper) rpm -q "$1" >/dev/null 2>&1 ;;
+	apk) apk info -e "$1" >/dev/null 2>&1 ;;
+	*) return 1 ;;
+	esac
+}
+
+pkg_install_batch() {
+	local translated=() n
+	for n in "$@"; do translated+=("$(pkg_name "$n")"); done
+	case "$PKG" in
+	pacman) run $SUDO pacman -S --noconfirm --needed "${translated[@]}" ;;
+	apt)
+		run env DEBIAN_FRONTEND=noninteractive $SUDO apt-get install -y --no-install-recommends "${translated[@]}"
+		;;
+	dnf) run $SUDO dnf install -y "${translated[@]}" ;;
+	zypper) run $SUDO zypper --non-interactive install "${translated[@]}" ;;
+	apk) run $SUDO apk add --no-cache "${translated[@]}" ;;
+	*) return 1 ;;
+	esac
+}
+
+# ════════════════════════════════════════════════════════════════════════════
+# UNINSTALL — remove the links this script made, restore what it backed up.
+# Works for both layouts: it only touches ~/.zshrc and ~/.tmux.conf when they
+# point into this repo's tty/ or are the repo's tracked copies.
+# ════════════════════════════════════════════════════════════════════════════
+if $UNINSTALL; then
+	info "uninstalling for $USER_NAME"
+	restored=0
+	removed=0
+	for f in .zshrc .tmux.conf; do
+		dst="$USER_HOME/$f"
+		if [[ -L "$dst" ]] && [[ "$(readlink "$dst")" == *"/tty/${f#.}" ]]; then
+			src="$(readlink "$dst")"
+			run rm -f "$dst"
+			bak=$(ls -1dt "$BACKUP_ROOT"/*/"$f" 2>/dev/null | head -1 || true)
+			if [[ -n "$bak" && -e "$bak" ]]; then
+				run cp -a "$bak" "$dst"
+				echo "  restored $f from $(basename "$(dirname "$bak")")"
+				restored=$((restored + 1))
+			else
+				warn "no backup to restore for $f (was -> $src)"
+			fi
+			removed=$((removed + 1))
+		else
+			skip "$f is not a dotfiles symlink"
+		fi
+	done
+	echo ""
+	echo "Removed $removed link(s), restored $restored file(s) from $BACKUP_ROOT."
+	echo "Login shell was not changed back: run 'chsh -s /bin/bash' to leave zsh."
+	echo "Left in place, delete when you are sure: $DOTDIR, ~/.oh-my-zsh"
+	exit 0
+fi
+
+# ════════════════════════════════════════════════════════════════════════════
+# DESKTOP LAYOUT (Arch + Sway)
+# ════════════════════════════════════════════════════════════════════════════
+if [[ "$MODE" == desktop ]]; then
+
+	# ── packages ────────────────────────────────────────────────
+	if $DO_PACKAGES; then
+		[[ $EUID -eq 0 ]] || die "desktop packages need root: re-run with sudo -E, or pass --no-packages"
+
+		pacman_install() {
+			local pkgs=("$@") plan count
+			if plan=$(pacman -S --noconfirm --needed --print "${pkgs[@]}" 2>/dev/null); then
+				count=$(echo "$plan" | grep -c '^/usr/' || true)
+				if [[ "$count" -eq 0 ]]; then
+					skip "all already installed: ${pkgs[*]}"
+					return 0
+				fi
+				info "installing $count package(s) (rest already present)"
+				pacman -S --noconfirm --needed "${pkgs[@]}"
+			else
+				warn "pre-check failed for: ${pkgs[*]} — attempting install anyway"
+				pacman -S --noconfirm --needed "${pkgs[@]}"
+			fi
+		}
+
+		info "system essentials..."
+		pacman_install base base-devel linux linux-headers linux-firmware \
+			amd-ucode efibootmgr openssh systemd-resolvconf man-db man-pages \
+			wget unzip zip bc screen git zsh vim nano btop htop lsof lshw \
+			usbutils smartmontools fd ripgrep tree neovim jq
+
+		info "Sway / Wayland desktop..."
+		pacman_install sway swaybg swaylock swayidle swaync waybar fuzzel wofi \
+			grim slurp wl-clipboard swappy brightnessctl sddm i3-wm dmenu
+
+		info "Pipewire audio stack..."
+		pacman_install pipewire pipewire-pulse pipewire-alsa pipewire-jack \
+			wireplumber gst-plugin-pipewire pavucontrol
+
+		info "networking..."
+		pacman_install iwd dnsmasq wireguard-tools tailscale blueman
+
+		info "applications..."
+		pacman_install firefox chromium thunderbird element-desktop signal-desktop \
+			discord konsole kitty
+
+		info "desktop portal & session..."
+		pacman_install xdg-desktop-portal xdg-desktop-portal-wlr \
+			xdg-desktop-portal-gtk xdg-utils gnome-keyring qt6-wayland
+
+		info "fonts..."
+		pacman_install ttf-fira-code woff2-font-awesome
+
+		info "python & scripting..."
+		pacman_install python python-pip nvm
+
+		# Node.js LTS via nvm (shell function — must be sourced in a subshell)
+		if [[ -f /usr/share/nvm/init-nvm.sh ]]; then
+			if ! sudo -u "$USER_NAME" bash -c 'source /usr/share/nvm/init-nvm.sh; nvm version --lts >/dev/null 2>&1'; then
+				info "installing Node.js LTS via nvm..."
+				sudo -u "$USER_NAME" bash -c 'source /usr/share/nvm/init-nvm.sh; nvm install --lts && nvm alias default lts/*'
+			else
+				skip "Node.js LTS already installed"
+			fi
+		else
+			warn "nvm init script not found; skipping Node.js LTS install"
+		fi
+
+		# pi coding agent (npm global)
+		if ! sudo -u "$USER_NAME" bash -c 'source /usr/share/nvm/init-nvm.sh; command -v pi >/dev/null 2>&1'; then
+			info "installing pi coding agent (npm global)..."
+			sudo -u "$USER_NAME" bash -c 'source /usr/share/nvm/init-nvm.sh; npm install -g --ignore-scripts @earendil-works/pi-coding-agent'
+		else
+			skip "pi coding agent already installed"
+		fi
+
+		info "utilities..."
+		pacman_install fdupes progress pv ncdu flameshot simple-scan \
+			gvfs-mtp exfat-utils squashfuse sshfs
+
+		info "AMD graphics drivers..."
+		pacman -S --noconfirm --needed vulkan-radeon
+
+		# AUR: bootstrap paru, then install the rest
+		if ! command -v paru &>/dev/null; then
+			info "bootstrapping paru from AUR..."
+			pacman -S --noconfirm --needed base-devel cargo git
+			build_dir=$(sudo -u "$USER_NAME" mktemp -d)
+			sudo -u "$USER_NAME" bash -c "
+				set -e
+				cd '$build_dir'
+				git clone --depth 1 https://aur.archlinux.org/paru.git
+				cd paru
+				makepkg -s --noconfirm
+			"
+			pacman -U --noconfirm "$build_dir"/paru/*.pkg.tar.zst
+			sudo rm -rf "$build_dir"
+		else
+			skip "paru already installed"
+		fi
+
+		info "AUR packages..."
+		sudo -u "$USER_NAME" paru -S --noconfirm --needed \
+			way-displays pw-volume sov libinput-gestures iwgtk \
+			python-pywal ttf-font-awesome-4 jetbrains-toolbox
+
+		info "enabling system services..."
+		systemctl enable sddm
+		systemctl enable iwd
+		systemctl enable tailscaled
+	fi
+
+	# ── dotfiles (desktop layout: the repo IS $HOME) ────────────
+	if $DO_DOTFILES; then
+		info "setting up dotfiles in $USER_HOME (desktop layout)..."
+
+		if [[ -d "$USER_HOME/.git" ]]; then
+			skip "dotfiles repo already exists, pulling latest..."
+			run as_user git -C "$USER_HOME" pull --ff-only
+		else
+			info "cloning dotfiles into $USER_HOME..."
+			run as_user bash -c '
+				set -e
+				repo_url="$1"; home="$2"; branch="${3:-main}"
+				tmpdir=$(mktemp -d)
+				trap "rm -rf $tmpdir" EXIT
+				git clone --quiet --branch "$branch" "$repo_url" "$tmpdir/repo"
+				cd "$tmpdir/repo"
+				git submodule update --init --recursive
+				mkdir -p "$home/.dotfiles-backup"
+				shopt -s dotglob nullglob
+				for item in *; do
+					dest="$home/$item"
+					if [ -e "$dest" ]; then
+						mv "$dest" "$home/.dotfiles-backup/$item"
+					fi
+					mv "$item" "$dest"
+				done
+			' _ "$REPO_URL" "$USER_HOME" "${BRANCH:-main}"
+		fi
+
+		# Konsole profiles
+		if [[ -d "$USER_HOME/.local/share/konsole" ]]; then
+			skip "konsole profiles already in place"
+		else
+			info "setting up konsole profiles..."
+			run as_user mkdir -p "$USER_HOME/.local/share/konsole"
+			run as_user cp "$USER_HOME/.local/share/konsole/Linux.colorscheme" \
+				"$USER_HOME/.local/share/konsole/Profile 1.profile" \
+				"$USER_HOME/.local/share/konsole/bookmarks.xml" \
+				"$USER_HOME/.local/share/konsole/" 2>/dev/null || true
+		fi
+
+		# libinput-gestures
+		if systemctl list-unit-files 2>/dev/null | grep -q libinput-gestures; then
+			run $SUDO systemctl enable --now libinput-gestures.service 2>/dev/null || true
+		fi
+
+		# wal cache dir
+		if [[ ! -d "$USER_HOME/.cache/wal" ]]; then
+			info "creating ~/.cache/wal..."
+			run as_user mkdir -p "$USER_HOME/.cache/wal/schemes"
+		fi
+
+		# systemd user services from dotfiles
+		if [[ -f "$USER_HOME/.config/systemd/user/xdg-desktop-portal.service" ]]; then
+			info "enabling xdg-desktop-portal user service..."
+			run as_user systemctl --user daemon-reload 2>/dev/null || true
+			run as_user systemctl --user enable xdg-desktop-portal.service 2>/dev/null || true
+		fi
+	fi
+
+	# ── login shell ─────────────────────────────────────────────
+	if $DO_DOTFILES && ! $NO_CHSH; then
+		current_shell=$(getent passwd "$USER_NAME" | cut -d: -f7)
+		if [[ "$current_shell" != "/usr/bin/zsh" ]]; then
+			info "setting login shell to zsh..."
+			run $SUDO chsh -s /usr/bin/zsh "$USER_NAME" ||
+				warn "chsh failed; run 'chsh -s /usr/bin/zsh' yourself"
+		else
+			skip "login shell already zsh"
+		fi
+	fi
+
+	info "desktop install complete!"
+	echo ""
+	echo "Next steps:"
+	echo "  1. Log out and back in (or reboot) to get the new shell + services"
+	echo "  2. Sway: pick the Wayland session in SDDM"
+	echo "  3. Run 'wal -i <image>' once to generate your color scheme"
+	exit 0
+fi
+
+# ════════════════════════════════════════════════════════════════════════════
+# HEADLESS LAYOUT (TTY/SSH-only, any distro)
+# ════════════════════════════════════════════════════════════════════════════
+
+# ── 1. packages ──────────────────────────────────────────────────────────────
+if $DO_PACKAGES; then
+	detect_pkg
+	if [[ -z "$PKG" ]]; then
+		warn "no supported package manager found; continuing with configs only"
+	elif [[ $EUID -ne 0 ]] && ! have_cmd sudo; then
+		warn "not root and sudo is missing; skipping packages"
+	else
+		case "$PKG" in
+		apt) info "apt-get update..."; run $SUDO apt-get update -qq ;;
+		apk) info "apk update...";      run $SUDO apk update ;;
+		esac
+
+		# group key | canonical:probe canonical:probe …
+		groups=(
+			"CORE|zsh:zsh|git:git|curl:curl|tmux:tmux|vim:vim vi|less:less"
+			"EDIT|htop:htop|btop:btop|ncdu:ncdu"
+			"TOOLS|ripgrep:rg|fd:fd fdfind|wget:wget|man-db:man|man-pages:|ca-certificates:"
+		)
+		packages=()
+		for g in "${groups[@]}"; do
+			IFS='|' read -ra rest <<<"${g#*|}"
+			packages+=("${rest[@]}")
+		done
+
+		want=()
+		already=()
+		for entry in "${packages[@]}"; do
+			name=${entry%%:*}
+			probes=${entry#*:}
+			if pkg_installed "$(pkg_name "$name")"; then
+				already+=("$name")
+			elif [[ -n "$probes" ]] && have_cmd $probes; then
+				already+=("$name")
+			else
+				want+=("$name")
+			fi
+		done
+
+		[[ ${#already[@]} -gt 0 ]] && skip "present: ${already[*]}"
+
+		if [[ ${#want[@]} -gt 0 ]]; then
+			info "installing via $PKG: ${want[*]}"
+			if ! pkg_install_batch "${want[@]}"; then
+				warn "batch install failed; installing one by one"
+				failed=()
+				for name in "${want[@]}"; do
+					pkg_install_batch "$name" || failed+=("$(pkg_name "$name")")
+				done
+				[[ ${#failed[@]} -gt 0 ]] && warn "not installed: ${failed[*]}"
+			fi
+		else
+			skip "all packages already present"
+		fi
+
+		if $WITH_TAILSCALE; then
+			if have_cmd tailscale; then
+				skip "tailscale already installed"
+			else
+				info "installing tailscale..."
+				pkg_install_batch tailscale || warn "tailscale not available via $PKG"
+			fi
+			if have_cmd systemctl; then
+				run $SUDO systemctl enable --now tailscaled 2>/dev/null ||
+					warn "could not enable tailscaled"
+			else
+				warn "no systemd; start tailscaled however this host runs services"
+			fi
+			info "then run: sudo tailscale up"
+		fi
+	fi
+fi
+
+# ── 2. oh-my-zsh ─────────────────────────────────────────────────────────────
+if $DO_DOTFILES && $WITH_OMZ; then
+	found_omz=""
+	for d in "$USER_HOME/.oh-my-zsh" "$USER_HOME/.config/oh-my-zsh" /usr/share/oh-my-zsh; do
+		[[ -f "$d/oh-my-zsh.sh" ]] && { found_omz="$d"; break; }
+	done
+
+	if [[ -n "$found_omz" ]]; then
+		skip "oh-my-zsh at $found_omz"
+	elif ! have_cmd git; then
+		warn "git is missing; cannot install oh-my-zsh (zshrc falls back to a plain prompt)"
+	else
+		info "cloning oh-my-zsh to ~/.oh-my-zsh..."
+		if run as_user git clone --quiet --depth 1 --branch "$OMZ_BRANCH" "$OMZ_REPO" "$USER_HOME/.oh-my-zsh"; then
+			info "oh-my-zsh installed at ~/.oh-my-zsh"
+		else
+			run rm -rf "$USER_HOME/.oh-my-zsh"
+			warn "could not clone oh-my-zsh: no route to github.com, or no CA bundle."
+			warn "  zshrc falls back to a plain zsh prompt until it shows up"
+		fi
+	fi
+fi
+
+# ── 3. dotfiles repo ─────────────────────────────────────────────────────────
+DOTFILES_ROOT=""
+MODE2=""
+if $DO_DOTFILES; then
+	if [[ -f "$USER_HOME/tty/zshrc" ]]; then
+		DOTFILES_ROOT="$USER_HOME"
+		MODE2=adopted
+		skip "$USER_HOME is already the dotfiles repo; adopting it"
+	elif [[ -n "$SOURCE_DIR" ]]; then
+		[[ -f "$SOURCE_DIR/tty/zshrc" ]] || die "--source $SOURCE_DIR has no tty/zshrc"
+		info "copying tty bundle from $SOURCE_DIR..."
+		run as_user mkdir -p "$DOTDIR"
+		run as_user cp -a "$SOURCE_DIR/tty/." "$DOTDIR/tty/"
+		DOTFILES_ROOT="$DOTDIR"
+		[[ -d "$SOURCE_DIR/.git" ]] && MODE2=bundle-linked || MODE2=bundle
+	elif have_cmd git; then
+		if [[ -d "$DOTDIR/.git" ]]; then
+			info "updating ~/.dotfiles..."
+			run as_user git -C "$DOTDIR" pull --ff-only --quiet ||
+				warn "could not fast-forward ~/.dotfiles; leaving the existing copy"
+			DOTFILES_ROOT="$DOTDIR"
+			MODE2=clone
+		else
+			cands=()
+			[[ -n "$BRANCH" ]] && cands+=("$BRANCH")
+			cands+=(main master "")
+			for try_branch in "${cands[@]}"; do
+				label="$try_branch"
+				[[ -n "$label" ]] || label="<remote default>"
+				info "cloning $label of $REPO_URL (sparse: tty + install only)..."
+				run rm -rf "$DOTDIR"
+				clone_args=(--quiet --depth 1 --filter=blob:none --no-checkout)
+				plain_args=(--quiet --depth 1)
+				[[ -n "$try_branch" ]] && { clone_args+=(--branch "$try_branch"); plain_args+=(--branch "$try_branch"); }
+				if ! run as_user git clone "${clone_args[@]}" "$REPO_URL" "$DOTDIR" ||
+					! run as_user git -C "$DOTDIR" sparse-checkout set --no-cone '/tty/' '/bin/install' ||
+					! run as_user git -C "$DOTDIR" checkout --quiet; then
+					warn "sparse clone of $label failed; retrying plain shallow"
+					run rm -rf "$DOTDIR"
+					[[ -n "$try_branch" ]] || run as_user git clone "${plain_args[@]}" "$REPO_URL" "$DOTDIR" ||
+						{ warn "cannot clone $label"; continue; }
+				fi
+				[[ -f "$DOTDIR/tty/zshrc" ]] && { BRANCH="$try_branch"; break; }
+				warn "$label has no tty/zshrc — skipping"
+				run rm -rf "$DOTDIR"
+			done
+			[[ -f "$DOTDIR/tty/zshrc" ]] ||
+				die "no branch of $REPO_URL gave me a tty/zshrc — pass --branch NAME or --source DIR"
+			DOTFILES_ROOT="$DOTDIR"
+			MODE2=clone
+		fi
+	else
+		warn "no git and no --source DIR: cannot install the configs"
+	fi
+
+	[[ -n "$DOTFILES_ROOT" && -f "$DOTFILES_ROOT/tty/zshrc" ]] ||
+		die "tty/zshrc not found after setup (DOTFILES_ROOT=$DOTFILES_ROOT)"
+	info "config source: $DOTFILES_ROOT/tty (mode: $MODE2)"
+fi
+
+# ── 4. link ~/.zshrc and ~/.tmux.conf ────────────────────────────────────────
+if $DO_DOTFILES; then
+	STAMP=$(date +%Y%m-%dT%H%M%S)
+	linked=0
+	for f in zshrc tmux.conf; do
+		src="$DOTFILES_ROOT/tty/$f"
+		dst="$USER_HOME/.$f"
+
+		if [[ $MODE2 != adopted && ! -f "$src" ]]; then
+			skip "tty/$f does not exist in $DOTFILES_ROOT"
+			continue
+		fi
+
+		if [[ $MODE2 == adopted ]]; then
+			if [[ $f == zshrc ]]; then
+				if grep -q 'tty/zshrc' "$dst" 2>/dev/null; then
+					skip "~/.zshrc already loads $DOTFILES_ROOT/tty/zshrc"
+				else
+					warn "~/.zshrc is the tracked desktop file and does not load tty/zshrc."
+					warn "  add: source \"\$HOME/tty/zshrc\""
+				fi
+			else
+				skip "~/.tmux.conf is the tracked desktop config; leaving it alone"
+			fi
+			continue
+		fi
+
+		if $COPY_FILES; then
+			if [[ -e "$dst" ]] && ! cmp -s "$src" "$dst"; then
+				run as_user mkdir -p "$BACKUP_ROOT/$STAMP"
+				run as_user cp -a "$dst" "$BACKUP_ROOT/$STAMP/$f"
+				info "backed up old .$f to $BACKUP_ROOT/$STAMP/$f"
+			fi
+			run as_user cp -a "$src" "$dst"
+			linked=$((linked + 1))
+			continue
+		fi
+
+		if [[ -L "$dst" ]]; then
+			[[ "$(readlink -m "$dst")" == "$(readlink -m "$src")" ]] && { skip ".$f already linked"; continue; }
+			run as_user mkdir -p "$BACKUP_ROOT/$STAMP"
+			run as_user mv "$dst" "$BACKUP_ROOT/$STAMP/$f"
+			info "moved the old dangling .$f into $BACKUP_ROOT/$STAMP"
+		elif [[ -e "$dst" ]]; then
+			run as_user mkdir -p "$BACKUP_ROOT/$STAMP"
+			run as_user mv "$dst" "$BACKUP_ROOT/$STAMP/$f"
+			info "backed up old .$f to $BACKUP_ROOT/$STAMP/$f"
+		fi
+
+		run as_user ln -sfn "$src" "$dst"
+		linked=$((linked + 1))
+		info "linked .$f -> $src"
+	done
+fi
+
+# ── 4b. pi coding agent (settings.json tracked; models.json from f creds) ────
+# The tracked .pi/agent/.gitignore whitelist blocks everything but settings.json
+# out of the clone. models.json lives in the f creds store (cred: pi-models).
+if $DO_DOTFILES && [[ -f "$DOTFILES_ROOT/.pi/agent/settings.json" ]]; then
+	if ! have_cmd pi && ! have_cmd npm; then
+		info "node/npm not found; install node first — pi settings still get installed"
+	elif ! have_cmd pi && have_cmd npm; then
+		info "installing pi coding agent (npm global)..."
+		run as_user npm install -g --ignore-scripts @earendil-works/pi-coding-agent ||
+			warn "npm install of pi failed (network?); settings will be installed anyway"
+	fi
+
+	# Install the tracked settings.json (backup existing first, never clobber).
+	pi_src="$DOTFILES_ROOT/.pi/agent/settings.json"
+	pi_dst="$USER_HOME/.pi/agent/settings.json"
+	if [[ -e "$pi_dst" ]] && ! cmp -s "$pi_src" "$pi_dst"; then
+		STAMP_PI=$(date +%Y%m-%dT%H%M%S)
+		run as_user mkdir -p "$BACKUP_ROOT/$STAMP_PI"
+		run as_user cp -a "$pi_dst" "$BACKUP_ROOT/$STAMP_PI/pi-settings.json"
+		run as_user mkdir -p "$USER_HOME/.pi/agent"
+		run as_user cp -a "$pi_src" "$pi_dst"
+		info "installed pi settings.json (old one backed up — merge on purpose)"
+	elif [[ ! -e "$pi_dst" ]]; then
+		run as_user mkdir -p "$USER_HOME/.pi/agent"
+		run as_user cp -a "$pi_src" "$pi_dst"
+		info "installed pi settings.json"
+	else
+		skip "~/.pi/agent/settings.json already matches"
+	fi
+
+	# fcli + creds restore: the personal uck bucket carries f pi-models.
+	if ! have_cmd f; then
+		if have_cmd npm; then
+			info "installing fcli (npm global)..."
+			run as_user npm install -g --ignore-scripts @fcli.dev/f ||
+				warn "npm install of fcli failed — models.json restore skipped"
+		else
+			warn "npm missing — cannot install fcli; run 'f pi-models restore' later"
+		fi
+	fi
+	if have_cmd f; then
+		# Personal uck bucket (forged into the config the user keeps locally).
+		if [[ -f "$DOTFILES_ROOT/.f/f.config.json" ]] && ! grep -q kensand-fcli-ucks "$USER_HOME/.f/f.config.json" 2>/dev/null; then
+			info "merging fcli uck bucket config..."
+			run as_user mkdir -p "$USER_HOME/.f"
+			run as_user cp -a "$USER_HOME/.f/f.config.json" "$USER_HOME/.f/f.config.json.bak" 2>/dev/null
+			run as_user cp -a "$DOTFILES_ROOT/.f/f.config.json" "$USER_HOME/.f/f.config.json"
+			run as_user f uck up 2>/dev/null || true
+		fi
+		# fj defaultHost is not tracked — inject it from creds (fj-default-host)
+		# if the store is already unlocked, else leave it out.
+		if ! grep -q defaultHost "$USER_HOME/.f/f.config.json" 2>/dev/null; then
+			fj_host=$(run as_user f creds get fj-default-host --secrets 2>/dev/null || true)
+			if [[ -n "$fj_host" ]]; then
+				info "injecting fj defaultHost from creds..."
+				run as_user f config set fj.defaultHost "$fj_host" || true
+			else
+				info "no creds:fj-default-host — f fj will resolve hosts from git origin"
+			fi
+		fi
+		# f creds is a single encrypted file (~/.f/f.creds.enc) that carries the
+		# whole store — including pi-models. There is no import command; you move
+		# the file itself, then unlock it with the passkey.
+		creds_file="${F_CREDS_FILE:-}"
+		if [[ -z "$creds_file" && -t 0 ]]; then
+			read -r -p "  path to your f.creds.enc (enter to skip): " creds_file </dev/tty
+		fi
+		if [[ -n "$creds_file" && -f "$creds_file" ]]; then
+			info "installing f creds store from $creds_file..."
+			run as_user mkdir -p "$USER_HOME/.f"
+			[[ -e "$USER_HOME/.f/f.creds.enc" ]] &&
+				run as_user cp -a "$USER_HOME/.f/f.creds.enc" "$USER_HOME/.f/f.creds.enc.bak"
+			run as_user cp -a "$creds_file" "$USER_HOME/.f/f.creds.enc"
+			if [[ -t 0 ]]; then
+				warn "unlock the store to finish (passkey): f creds unlock"
+				info "then: f pi-models restore"
+			else
+				warn "no terminal for the passkey — run 'f creds unlock && f pi-models restore' on the host"
+			fi
+		else
+			warn "no creds file given — run 'f creds unlock && f pi-models restore' on the host to get models.json"
+		fi
+	fi
+fi
+
+# ── 5. login shell ───────────────────────────────────────────────────────────
+if $DO_DOTFILES && ! $NO_CHSH; then
+	zsh_bin=$(command -v zsh || true)
+	if [[ -z "$zsh_bin" ]]; then
+		warn "zsh not installed; leaving the login shell alone"
+	else
+		current_shell=$(getent passwd "$USER_NAME" | cut -d: -f7)
+		if [[ "$current_shell" == "$zsh_bin" ]]; then
+			skip "login shell already $zsh_bin"
+		elif [[ $EUID -ne 0 && ! -t 0 ]]; then
+			warn "not root and no terminal: run 'chsh -s $zsh_bin' yourself"
+		elif ! have_cmd chsh; then
+			if have_cmd usermod; then
+				info "no chsh; using usermod instead..."
+				run $SUDO usermod -s "$zsh_bin" "$USER_NAME" ||
+					warn "usermod failed; run 'chsh -s $zsh_bin' yourself"
+			else
+				warn "no chsh or usermod (BusyBox without shadow). Either:"
+				warn "  $SUDO ${PKG:-apk} install shadow   (or shadow-utils on Debian)"
+				warn "  then: chsh -s $zsh_bin $USER_NAME"
+			fi
+		else
+			info "setting login shell to $zsh_bin..."
+			run $SUDO chsh -s "$zsh_bin" "$USER_NAME" ||
+				warn "chsh failed; run 'chsh -s $zsh_bin' yourself"
+		fi
+	fi
+fi
+
+# ── 6. verify ────────────────────────────────────────────────────────────────
+if $DO_DOTFILES && ! $DRY; then
+	if [[ -f "$USER_HOME/.zshrc" ]] && have_cmd zsh; then
+		if run as_user zsh -n "$USER_HOME/.zshrc"; then
+			info "~/.zshrc parses"
+		else
+			warn "~/.zshrc did not parse; check 'zsh -n ~/.zshrc'"
+		fi
+		out=$(as_user env -u SSH_TTY DOTFILES_TMUX_AUTOATTACH=0 zsh -i -c \
+			'printf "%s|%s" "${ZSH:-none}" "$EDITOR"' </dev/null 2>&1 | tail -1) || true
+		info "interactive zsh: zsh/theme = ${out:-no output}"
+	fi
+
+	if have_cmd tmux && [[ -f "$USER_HOME/.tmux.conf" ]]; then
+		sock="install-verify-$$"
+		if tmux_err=$(as_user tmux -f "$USER_HOME/.tmux.conf" -L "$sock" start-server 2>&1); then
+			[[ -n "$tmux_err" ]] && warn "~/.tmux.conf loaded with complaints: $tmux_err" ||
+				info "~/.tmux.conf loads"
+			as_user tmux -L "$sock" kill-server 2>/dev/null || true
+		else
+			warn "~/.tmux.conf did not load: ${tmux_err:-tmux failed to start}"
+		fi
+	fi
+fi
+
+# ── summary ──────────────────────────────────────────────────────────────────
+echo ""
+info "done (headless, mode: ${MODE2:-none})"
+if $DRY; then
+	echo "Nothing was changed (dry run)."
+else
+	echo ""
+	echo "Next steps:"
+	echo "  1. log out and back in (or: exec zsh) to pick up the new shell + config"
+	echo "  2. SSH logins now land in tmux session 'ssh' and reattach on reconnect."
+	echo "       opt out per host:  echo 'DOTFILES_TMUX_AUTOATTACH=0' >> ~/.zshrc.local"
+	echo "  3. machine-specific paths go in ~/.zshrc.local — see $DOTFILES_ROOT/tty/zshrc.local.example"
+	echo "  4. updates: checked every 13 days in the background, or run:"
+	echo "       ${DOTFILES_ROOT:-$HOME/.dotfiles}/tty/update.sh run"
+	echo ""
+	echo "Backups of replaced files: $BACKUP_ROOT"
+	echo "Undo this install: bin/install --uninstall"
+fi

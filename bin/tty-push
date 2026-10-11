@@ -11,22 +11,22 @@
 #   bin/tty-push user@host --tailscale            # + install/enable tailscaled
 #   bin/tty-push user@host --dry-run              # show every remote command
 #   bin/tty-push user@host --bundle               # force the offline copy
-#   bin/tty-push user@host -- --no-chsh --copy    # anything else setup-tty takes
+#   bin/tty-push user@host -- --no-chsh --copy    # anything else install takes
 #
 # How it works:
-#   1. tar tty/ + bin/setup-tty.sh over SSH into ~/.dotfiles-tty-bundle on the
+#   1. tar tty/ + bin/install over SSH into ~/.dotfiles-tty-bundle on the
 #      target. All the target needs is a POSIX shell and tar — no curl, no git,
 #      no GitHub access, so it works on an air-gapped or barely-bootstrapped box.
 #      (If even bash is missing, as on a bare Alpine image, it is installed
 #      first, because the installer itself is a bash script.)
 #   2. Ask the target whether it can reach the dotfiles repo over its own git.
-#      If yes, setup-tty.sh sparse-clones the repo instead of using the bundle:
+#      If yes, install sparse-clones the repo instead of using the bundle:
 #      that is what makes the 13-day self-update work there. If no, it installs
 #      from the bundle and tells you updates are off.
-#   3. Run setup-tty.sh, then re-check the result from the outside: does
+#   3. Run install, then re-check the result from the outside: does
 #      ~/.zshrc parse, is tmux present, what is the login shell now.
 #
-# Anything after -- is passed to setup-tty.sh verbatim.
+# Anything after -- is passed to install verbatim.
 #
 # Host keys: your own ~/.ssh/config wins, so a first connection to a new host
 # needs a terminal to answer 'yes'. Running tty-push from a script or CI has no
@@ -149,7 +149,7 @@ while [[ $# -gt 0 ]]; do
 	shift
 done
 
-[[ -n "$HOST" ]] || die "no target. usage: tty-push [user@]host [-- setup-tty.sh args]"
+[[ -n "$HOST" ]] || die "no target. usage: tty-push [user@]host [-- install args]"
 
 # ── 0. agree on a branch the remote actually has, with tty/ inside it ────────
 # --branch defaults to whatever this checkout is sitting on, which is often a
@@ -182,7 +182,7 @@ if ! $FORCE_BUNDLE && [[ -d "$REPO_ROOT/.git" ]]; then
 		[[ "$chosen" != "$BRANCH" && -n "$BRANCH" ]] &&
 			info "'$BRANCH' is not on $REPO_URL (or has no tty/) — using '$chosen' instead"
 		BRANCH="$chosen"
-		if [ -n "$(git -C "$REPO_ROOT" status --porcelain --untracked-files=no -- tty bin/setup-tty.sh 2>/dev/null)" ]; then
+		if [ -n "$(git -C "$REPO_ROOT" status --porcelain --untracked-files=no -- tty bin/install 2>/dev/null)" ]; then
 			info "note: tty/ has uncommitted changes here — a clone will not see them; pass --bundle to ship the working copy"
 		fi
 		if [[ -n "$remote_sha" && "$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo ?)" != "$remote_sha" ]]; then
@@ -209,7 +209,7 @@ info "target: ${remote_os}"
 
 # ── 1b. the installer is bash; some base images (Alpine) have no bash ────────
 if ! $DRY && ! rsh 'command -v bash >/dev/null 2>&1'; then
-	info "target has no bash — installing it first (setup-tty.sh is a bash script)"
+	info "target has no bash — installing it first (install is a bash script)"
 	install_bash='if command -v apk >/dev/null 2>&1; then apk add --no-cache bash
 		elif command -v apt-get >/dev/null 2>&1; then apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq bash
 		elif command -v dnf >/dev/null 2>&1; then dnf install -y -q bash
@@ -225,14 +225,14 @@ fi
 
 # ── 2. ship the bundle (tty/ + the installer) ────────────────────────────────
 [[ -d "$REPO_ROOT/tty" ]] || die "$REPO_ROOT/tty not found — run this from your dotfiles repo"
-info "sending tty/ + setup-tty.sh to $HOST:~/$BUNDLE_NAME"
+info "sending tty/ + install to $HOST:~/$BUNDLE_NAME"
 if $DRY; then
-	printf '  [dry] tar -C %s -cf - tty bin/setup-tty.sh .pi/agent/settings.json | ssh %s %s -- "tar -C \$HOME/%s -xf -"\n' \
+	printf '  [dry] tar -C %s -cf - tty bin/install .pi/agent/settings.json | ssh %s %s -- "tar -C \$HOME/%s -xf -"\n' \
 		"$REPO_ROOT" "${SSH_OPTS[*]}" "$HOST" "$BUNDLE_NAME"
 else
 	ssh "${SSH_OPTS[@]}" "$HOST" \
 		"rm -rf \"\$HOME/$BUNDLE_NAME\" && mkdir -p \"\$HOME/$BUNDLE_NAME\" && tar -C \"\$HOME/$BUNDLE_NAME\" -xf -" \
-		< <(tar -C "$REPO_ROOT" -cf - tty bin/setup-tty.sh .pi/agent/settings.json) ||
+		< <(tar -C "$REPO_ROOT" -cf - tty bin/install .pi/agent/settings.json) ||
 		die "could not copy the bundle (does the target have tar?)"
 fi
 
@@ -258,12 +258,12 @@ else
 fi
 
 # ── 4. install ───────────────────────────────────────────────────────────────
-info "running setup-tty.sh on $HOST (mode: $mode)"
+info "running install on $HOST (mode: $mode)"
 # -t so sudo/chsh can ask for a password through this connection.
-install_cmd="bash \"\$HOME/$BUNDLE_NAME/bin/setup-tty.sh\"$(shell_quote_join "${REMOTE_ARGS[@]}")"
+install_cmd="bash \"\$HOME/$BUNDLE_NAME/bin/install\"$(shell_quote_join "${REMOTE_ARGS[@]}")"
 if ! $DRY; then
 	if ! ssh -t "${SSH_OPTS[@]}" "$HOST" "$install_cmd"; then
-		die "setup-tty.sh failed on $HOST — rerun with --no-packages to retry configs only"
+		die "install failed on $HOST — rerun with --no-packages to retry configs only"
 	fi
 fi
 

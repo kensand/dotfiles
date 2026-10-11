@@ -131,7 +131,7 @@ if [ "$CMD" = status ]; then
 	printf 'head     %s\n' "$(git -C "$root" rev-parse --short HEAD 2>/dev/null || echo '?')"
 	printf 'tracked  %s (as of the last fetch)\n' "$up_tracking"
 	printf 'behind   %s\n' "$(git -C "$root" rev-list --count "HEAD..$up_tracking" 2>/dev/null || echo 'n/a')"
-	printf 'modified %s\n' "$([ -n "$(git -C "$root" status --porcelain --untracked-files=no -- tty bin/setup-tty.sh 2>/dev/null)" ] && echo 'yes in tty/ (auto-update will wait)' || echo 'no (tty/ clean; other edits do not block it)')"
+	printf 'modified %s\n' "$([ -n "$(git -C "$root" status --porcelain --untracked-files=no -- tty bin/install 2>/dev/null)" ] && echo 'yes in tty/ (auto-update will wait)' || echo 'no (tty/ clean; other edits do not block it)')"
 	printf 'last check  %s  (every %s days, mode %s)\n' "$checked" "$DAYS" "$MODE"
 	printf 'state    %s\n' "$STATE_DIR"
 	[ -f "$LOG" ] && {
@@ -216,7 +216,7 @@ fi
 # meanwhile untracked files cannot block a fast-forward, and if an incoming
 # commit really does touch some other locally-modified file, the merge itself
 # fails and says so in the log. Checking first just keeps the decision obvious.
-if [ -n "$(git -C "$root" status --porcelain --untracked-files=no -- tty bin/setup-tty.sh 2>/dev/null)" ]; then
+if [ -n "$(git -C "$root" status --porcelain --untracked-files=no -- tty bin/install 2>/dev/null)" ]; then
 	notify "$behind commit(s) available but tty/ is modified here — nothing merged (git -C $root pull --ff-only)"
 	exit 0
 fi

@@ -1,7 +1,7 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # dotfiles :: tty — zsh for TTY / SSH sessions
 #
-# Installed as ~/.zshrc by bin/setup-tty.sh (symlink; --copy for a plain copy).
+# Installed as ~/.zshrc by bin/install (symlink; --copy for a plain copy).
 # The same file runs on the desktop, where this repo *is* $HOME, and on headless
 # hosts, where the installer sparse-clones it to ~/.dotfiles.
 #
@@ -66,7 +66,7 @@ if [[ -n "$SSH_TTY" && -z "$TMUX" && -z "$STY" && "$TERM" != dumb
 fi
 
 # ── oh-my-zsh ────────────────────────────────────────────────────────────────
-# First match wins: ~/.oh-my-zsh (upstream layout, what bin/setup-tty.sh
+# First match wins: ~/.oh-my-zsh (upstream layout, what bin/install
 # creates), then the pinned submodule, then the distro package.
 for _dir in "$HOME/.oh-my-zsh" "$HOME/.config/oh-my-zsh" /usr/share/oh-my-zsh; do
 	[[ -f "$_dir/oh-my-zsh.sh" ]] && {
@@ -95,7 +95,7 @@ if [[ -n "$ZSH" ]]; then
 else
 	# Bare fallback: a host that has zsh but no oh-my-zsh yet still gets
 	# completion and a prompt naming the machine you are on.
-	print -u2 "dotfiles: oh-my-zsh not found (run bin/setup-tty.sh); using plain zsh"
+	print -u2 "dotfiles: oh-my-zsh not found (run bin/install); using plain zsh"
 	autoload -Uz compinit && compinit -u
 	PROMPT='%m %~ %# '
 fi
