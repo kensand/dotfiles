@@ -638,37 +638,15 @@ if [[ "$MODE" == desktop ]]; then
 		info "AUR packages..."
 		# On aarch64, vanilla AUR is a trap: most PKGBUILDS declare
 		# arch=('x86_64') or ship prebuilt x86 tarballs, so paru either refuses or
-		# installs a binary that cannot exec. Two prebuilt-binary-free, arm-built
-		# repos cover most of what this list needs:
-		#   - archlinuxcn aarch64: confirmed to carry a real aarch64 database
-		#   - 7Ji: arm-built AUR re-published as a signed pacman repo
-		# Both are added to pacman.conf so pacman resolves them natively rather
-		# than building on-device (a full AUR compile on an SBC is hours).
-		if [[ "$ARCH_FAMILY" == arm ]]; then
-			info "aarch64: wiring up arm-built AUR replacement repos..."
-			add_repo() {
-				local name="$1" server="$2"
-				if grep -qE "^\s*\[$name\]" /etc/pacman.conf; then
-					skip "repo [$name] already configured"
-					return 0
-				fi
-				# Build the stanza without a heredoc: this file is tab-indented and
-				# an indented terminator would not end the block.
-				run $SUDO sh -c 'printf "\n[%s]\nServer = %s\n" "$1" "$2" >>"$3"' _ "$name" "$server" /etc/pacman.conf
-				info "added repo [$name]"
-			}
-			add_repo archlinuxcn 'https://mirrors.tuna.tsinghua.edu.cn/archlinuxcn/$arch'
-			add_repo 7ji 'https://github.com/7Ji/archrepo/releases/download/$arch'
-			# archlinuxcn/7ji are unsigned until their keyrings are present; install
-			# keyrings first with SigLevel=Never only if the keyring is unavailable.
-			if ! pacman -Sq --quiet archlinuxcn-keyring >/dev/null 2>&1; then
-				info "installing archlinuxcn-keyring (may need --no-verify initially)..."
-				run $SUDO pacman -S --noconfirm --needed archlinuxcn-keyring ||
-					warn "archlinuxcn-keyring failed — sign the keys or set SigLevel=Never for [archlinuxcn]"
-			fi
-			run $SUDO pacman -Sy
-		fi
-
+		# installs a binary that cannot exec.
+		#
+		# NOTE: this used to wire up third-party "arm-built AUR replacement" repos
+		# ([archlinuxcn] via TUNA + [7ji] from github.com/7Ji/archrepo) to avoid
+		# on-device AUR compiles. Removed: [7ji] is an unsigned-by-us third-party
+		# repo (key from pugokushin@gmail.com) that pacman rejects as unknown trust,
+		# and it kept getting re-added on every dotfiles install. AUR packages below
+		# are attempted via paru and simply skipped when they don't build on arm.
+		
 		# jetbrains-toolbox downloads a prebuilt x86_64 AppImage-style bundle; it
 		# cannot work on arm regardless of repo. Everything else is either pure
 		# Python/shell (pw-volume, python-pywal, libinput-gestures, sov) or
