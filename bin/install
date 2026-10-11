@@ -238,12 +238,23 @@ fi
 
 # Desktop mode on a non-Arch host is a hard stop: the package list is Arch-only
 # (pacman + AUR + sway). Headless mode is distro-agnostic and works everywhere.
+# ALARM (Arch Linux ARM) identifies as ID=archarm with ID_LIKE=arch, and some
+# minimal/older builds fall back to ID=linux. Match arch, archarm, or any
+# distro that declares ID_LIKE containing "arch".
 if [[ "$MODE" == desktop ]]; then
-	if ! command -v pacman >/dev/null 2>&1 && [[ ! -r /etc/os-release ]] || \
-	   ! (. /etc/os-release 2>/dev/null && [[ "${ID:-}" == arch ]]); then
-		warn "desktop mode requires Arch Linux (pacman). This host is not Arch."
+	arch_like=false
+	if [[ -r /etc/os-release ]]; then
+		os_id=$(. /etc/os-release 2>/dev/null && echo "${ID:-}")
+		os_like=$(. /etc/os-release 2>/dev/null && echo "${ID_LIKE:-}")
+		case "$os_id" in
+			arch | archarm) arch_like=true ;;
+		esac
+		for l in $os_like; do [[ "$l" == *arch* ]] && arch_like=true; done
+	fi
+	if ! command -v pacman >/dev/null 2>&1 || ! $arch_like; then
+		warn "desktop mode requires Arch or Arch Linux ARM (pacman, ID=arch/linux). This host is not."
 		warn "  Re-run with --mode headless for a distro-agnostic TTY/SSH install."
-		die "desktop mode is Arch-only; pass --mode headless"
+		die "desktop mode is Arch/ALARM-only; pass --mode headless"
 	fi
 fi
 
@@ -352,7 +363,8 @@ detect_pkg() {
 	fi
 	for c in $id $likes; do
 		case "$c" in
-		arch) PKG=pacman; return ;;
+		arch | archarm) PKG=pacman; return ;;
+		*arch*)  PKG=pacman; return ;;   # ID_LIKE containing arch (e.g. arch derivatives)
 		debian | ubuntu) PKG=apt; return ;;
 		fedora | rhel | centos | amzn) PKG=dnf; return ;;
 		suse | opensuse*) PKG=zypper; return ;;
