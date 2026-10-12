@@ -1258,6 +1258,14 @@ else
 	echo "       opt out per host:  echo 'DOTFILES_TMUX_AUTOATTACH=0' >> ~/.zshrc.local"
 	$IS_TERMUX && echo "       (no SSH_TTY inside Termux, so that hook stays inert here)"
 	echo "  3. machine-specific paths go in ~/.zshrc.local — see $DOTFILES_ROOT/tty/zshrc.local.example"
+	echo "       (includes why pi voice capture stays inline in ~/.pi/agent/stt.json on"
+	echo "        Termux; check it with: pi-stt-where)"
+	if $IS_TERMUX; then
+		echo "  3b. pi voice (STT capture + TTS) is NOT installed by this script — it needs"
+		echo "      the f creds store. On a Termux host with the store unlocked:"
+		echo "        f creds unlock"
+		echo "        sh $DOTFILES_ROOT/tty/setup-pi-voice-termux.sh"
+	fi
 	echo "  4. updates: checked every 13 days in the background, or run:"
 	echo "       ${DOTFILES_ROOT:-$HOME/.dotfiles}/tty/update.sh run"
 	echo ""

@@ -1,0 +1,92 @@
+#!/bin/sh
+# Which capture config does pi-voice-stt ACTUALLY resolve, right now, in this process?
+#
+# Resolves the path the way the extension does (config/startup.ts: PI_STT_CONFIG,
+# else ~/.pi/agent/stt.json) and prints the resulting ffmpegPath and provider. Run it
+# after editing either config, or before pressing Ctrl+R, instead of reading an ffmpeg
+# stack trace to work out which file got loaded.
+#
+# Exit 0 = capture resolves to the Termux shim. Exit 1 = anything else, with the
+# reason on stderr. On a non-Termux host the built-in default is correct, so this
+# script exits 0 without checking anything.
+set -u
+
+say() { printf '%s\n' "$*"; }
+die() { printf '%s\n' "$*" >&2; exit 1; }
+
+case "${PREFIX:-}" in
+	/data/data/com.termux/files/usr) TERMUX=true ;;
+	*)                             TERMUX=false ;;
+esac
+[ -n "${TERMUX_VERSION:-}" ] && TERMUX=true
+
+ROOT="${HOME:?HOME unset}"
+EXT="$ROOT/.pi/agent/npm/node_modules/pi-voice-stt"
+
+if [ "$TERMUX" != true ]; then
+	say "not Termux (PREFIX=${PREFIX:-unset}) -- the built-in ffmpeg default is correct here,"
+	say "so capture resolution is not checked."
+	exit 0
+fi
+
+[ -d "$EXT" ] || die "pi-voice-stt not installed at $EXT"
+
+# No absolute path to node_modules is baked in below: this file is tracked in the
+# dotfiles repo and installed to ~/bin, so it has to work on every host.
+node --input-type=module - "$EXT" <<'NODE'
+import { existsSync } from "node:fs";
+import { join } from "node:path";
+
+const [, , ext] = process.argv;
+
+const candidates = [
+	join(ext, "..", "jiti", "lib", "jiti.mjs"),
+	join(ext, "..", "..", "node_modules", "jiti", "lib", "jiti.mjs"),
+];
+const jitiPath = candidates.find((p) => existsSync(p));
+if (!jitiPath) {
+	console.error(
+		`pi-stt-where: could not find jiti near ${ext}\n` +
+		"  pi-voice-stt is a TypeScript extension, so resolving its config needs jiti.\n" +
+		`  looked for jiti/lib/jiti.mjs in: ${candidates.join(", ")}\n` +
+		`  check: ls ${join(ext, "..")}`,
+	);
+	process.exit(1);
+}
+
+const { createJiti } = await import("file://" + jitiPath);
+const jiti = createJiti(import.meta.url, { interopDefault: true });
+const { resolveStartupOptions } = await jiti.import(`${ext}/src/config/startup.ts`);
+const { loadConfig } = await jiti.import(`${ext}/src/config/load-config.ts`);
+
+const startup = resolveStartupOptions();
+const cfg = await loadConfig({ configPath: startup.configPath });
+
+const which = process.env.PI_STT_CONFIG ? "PI_STT_CONFIG" : "~/.pi/agent/stt.json";
+console.log(`config source : ${which}`);
+console.log(`config file   : ${startup.configPath}`);
+console.log(`ffmpegPath    : ${cfg.capture.ffmpegPath}`);
+console.log(`inputFormat   : ${cfg.capture.inputFormat}`);
+console.log(`provider      : ${cfg.provider.type} / ${cfg.provider.model}`);
+console.log(`cleanup       : ${cfg.cleanup.model}`);
+
+if (process.env.PI_STT_CONFIG) {
+	console.error(
+		"\npi-stt-where: PI_STT_CONFIG is set. It REPLACES the config path rather than\n" +
+		"merging over ~/.pi/agent/stt.json, so a capture-only sidecar silently loses\n" +
+		"provider and cleanup config. Capture belongs inline in stt.json; unset this.",
+	);
+}
+
+if (!String(cfg.capture.ffmpegPath).endsWith("termux-capture")) {
+	console.error(
+		"\npi-stt-where: capture is NOT the Termux shim. pi-voice-stt will call real ffmpeg,\n" +
+		"which has no live audio input here (--disable-indevs --enable-indev=lavfi) and will\n" +
+		`fail with "Unknown input format: '${cfg.capture.inputFormat}'".\n` +
+		"Fix: put the capture block in the file named above, with an absolute ffmpegPath\n" +
+		"(it goes to spawn() with no shell and no tilde expansion). /reload re-reads the\n" +
+		"file; it cannot change the environment.",
+	);
+	process.exit(1);
+}
+NODE

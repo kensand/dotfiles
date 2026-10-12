@@ -1,0 +1,198 @@
+#!/usr/bin/env node
+// ffmpeg-compatible capture shim for Termux.
+//
+// Why: Termux's ffmpeg is built with --disable-indevs --enable-indev=lavfi, so it
+// has NO live capture input format (-f pulse / alsa / aaudio all fail) and it does
+// not link libpulse. pi-voice-stt spawns ffmpeg with a fixed argument list, so this
+// shim accepts that list, records with termux-microphone-record instead, and writes
+// the pcm_s16le wav the extension expects.
+//
+// Contract from src/audio/ffmpeg-recorder.ts:
+//   -hide_banner -loglevel warning -f <fmt> -i <input> -vn -acodec pcm_s16le
+//   -ar <rate> -ac <ch> -y <outputPath>
+// Stay alive until SIGINT/SIGTERM (the stop toggle), then leave a valid wav at
+// outputPath before exiting. stderr is captured by the extension, so errors there
+// surface in the pi UI.
+import { spawn } from "node:child_process";
+import { mkdtempSync, existsSync, openSync, readSync, closeSync, statSync, rmSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+
+const diag = process.env.TERMUX_CAPTURE_DEBUG
+  ? (m) => console.error(`[termux-capture] ${m}`)
+  : () => {};
+
+const parseArgs = (argv) => {
+  let rate = 16000;
+  let channels = 1;
+  let output = "";
+  for (let i = 0; i < argv.length; i += 1) {
+    const a = argv[i];
+    if (a === "-ar") { rate = Number.parseInt(argv[++i], 10) || rate; continue; }
+    if (a === "-ac") { channels = Number.parseInt(argv[++i], 10) || channels; continue; }
+    if (a === "-o" || a === "--output") { output = argv[++i] ?? ""; continue; }
+    if (a.startsWith("-")) continue;
+    if (a.endsWith(".wav")) output = a;
+  }
+  return { rate, channels, output };
+};
+
+const api = async (args) => {
+  return await new Promise((resolve) => {
+    const child = spawn("termux-microphone-record", args, { stdio: ["ignore", "pipe", "pipe"] });
+    let out = "";
+    child.stdout.on("data", (c) => { out += c; });
+    child.stderr.on("data", (c) => { out += c; });
+    child.on("error", (e) => resolve({ code: -1, out: `spawn error: ${e.message}` }));
+    child.on("close", (code) => resolve({ code, out: out.trim() }));
+  });
+};
+
+const recordingState = async () => {
+  const { out } = await api(["-i"]);
+  try {
+    return JSON.parse(out).isRecording === true;
+  } catch {
+    return null;
+  }
+};
+
+// Largest PCM amplitude in a wav, mirroring the extension's own silence guard so we
+// can name the likely cause (Android denies background mic) instead of failing
+// opaquely. Returns undefined if the header cannot be parsed.
+const pcmPeak = (path) => {
+  try {
+    const size = statSync(path).size;
+    const buf = Buffer.alloc(size);
+    const fd = openSync(path, "r");
+    try {
+      readSync(fd, buf, 0, size, 0);
+    } finally {
+      closeSync(fd);
+    }
+    // Skip to the start of PCM data; a 44-byte canonical header is usual, but find
+    // the 'data' chunk to be safe.
+    let start = 44;
+    const dataIdx = buf.indexOf("data");
+    if (dataIdx > 0) start = dataIdx + 8;
+    let peak = 0;
+    for (let i = start; i + 1 < size; i += 2) {
+      const s = buf.readInt16LE(i);
+      const a = s < 0 ? -s : s;
+      if (a > peak) peak = a;
+    }
+    return peak;
+  } catch {
+    return undefined;
+  }
+};
+
+// Android background-mic restriction yields a valid file of pure digital silence
+// (~amp 1). Termux cannot read dumpsys to check focus, so surface the likely cause.
+const SILENT_PEAK = 100;
+
+const main = async () => {
+  const { rate, channels, output } = parseArgs(process.argv.slice(2));
+  if (!output) {
+    console.error("termux-capture: no .wav output path in arguments");
+    process.exit(2);
+  }
+
+  // One MediaRecorder at a time on Android. A previous shim that was killed
+  // without finalising leaves a recording that blocks every later attempt, the
+  // API then reports success while writing nothing.
+  if (await recordingState()) {
+    diag("a stale recording is active, stopping it first");
+    await api(["-q"]);
+    await new Promise((r) => setTimeout(r, 500));
+  }
+
+  const dir = mkdtempSync(join(tmpdir(), "tcap-"));
+  const source = join(dir, "raw.m4a");
+  let stopped = false;
+  let cleaned = false;
+  const cleanup = () => {
+    if (cleaned) return;
+    cleaned = true;
+    try { rmSync(dir, { recursive: true, force: true }); } catch { /* ignore */ }
+  };
+  const onStop = () => { stopped = true; };
+  process.on("SIGINT", onStop);
+  process.on("SIGTERM", onStop);
+  process.on("exit", cleanup);
+
+  diag(`recording -> ${source} (${rate}Hz, ${channels}ch)`);
+  const started = await api(["-f", source, "-l", "0", "-r", String(rate), "-c", String(channels), "-e", "aac"]);
+  diag(`start: code=${started.code} out=${JSON.stringify(started.out)}`);
+  // The CLI exits 0 even when the platform refused to open the mic, so trust the
+  // state endpoint instead of the exit code.
+  if (!(await recordingState())) {
+    console.error(
+      "termux-capture: microphone recording did not start. Check that the Termux:API app is" +
+      ` installed, RECORD_AUDIO is granted, and no other app holds the mic.${started.out ? ` (api said: ${started.out})` : ""}`,
+    );
+    cleanup();
+    process.exit(1);
+  }
+
+  diag("recording active, waiting for stop signal");
+  while (!stopped) {
+    await new Promise((r) => setTimeout(r, 100));
+  }
+
+  const stoppedResult = await api(["-q"]);
+  diag(`stop: code=${stoppedResult.code} out=${JSON.stringify(stoppedResult.out)}`);
+
+  // The media recorder flushes asynchronously after the stop reply.
+  let bytes = 0;
+  for (let i = 0; i < 40; i += 1) {
+    if (existsSync(source)) {
+      bytes = statSync(source).size;
+      if (bytes > 0) break;
+    }
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  if (bytes === 0) {
+    console.error("termux-capture: recording produced no audio data");
+    cleanup();
+    process.exit(1);
+  }
+  diag(`captured ${bytes} bytes, converting`);
+
+  const convert = await new Promise((resolve) => {
+    const child = spawn("ffmpeg", [
+      "-hide_banner", "-loglevel", "warning", "-y", "-i", source,
+      "-vn", "-acodec", "pcm_s16le", "-ar", String(rate), "-ac", String(channels), output,
+    ], { stdio: ["ignore", "ignore", "pipe"] });
+    let err = "";
+    child.stderr.on("data", (c) => { err += c; });
+    child.on("error", (e) => resolve({ code: -1, err: e.message }));
+    child.on("close", (code) => resolve({ code, err: err.trim() }));
+  });
+
+  if (convert.code !== 0 || !existsSync(output) || statSync(output).size === 0) {
+    console.error(`termux-capture: wav conversion failed (exit ${convert.code})${convert.err ? `: ${convert.err}` : ""}`);
+    cleanup();
+    process.exit(1);
+  }
+
+  const peak = pcmPeak(output);
+  diag(`wrote ${statSync(output).size} byte wav to ${output} (peak amplitude ${peak})`);
+  if (peak !== undefined && peak <= SILENT_PEAK) {
+    // Not an error: the extension's own guard reports silence. Log the cause so the
+    // stderr it captures is actionable.
+    console.error(
+      "termux-capture: captured audio is digital silence. Android blocks the microphone" +
+      " while Termux is in the background (also applies over SSH/tmux). Bring Termux to the" +
+      " foreground and grant RECORD_AUDIO 'while using the app', then retry.",
+    );
+  }
+
+  cleanup();
+  process.exit(0);
+};
+
+main().catch((error) => {
+  console.error(`termux-capture: ${error instanceof Error ? error.message : String(error)}`);
+  process.exit(1);
+});

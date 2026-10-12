@@ -37,6 +37,38 @@ fi
 [[ -d "$HOME/.local/share/JetBrains/Toolbox/scripts" ]] &&
 	export PATH="$PATH:$HOME/.local/share/JetBrains/Toolbox/scripts"
 
+# ── pi voice capture (Termux) — nothing to set here ───────────────────────
+# pi-voice-stt captures with ffmpeg. On a normal host that already works: leave
+# PI_STT_CONFIG unset and the extension picks its own platform default (pulse on
+# Linux, avfoundation on macOS, dshow on Windows).
+#
+# Termux is the exception. Its ffmpeg is built --disable-indevs
+# --enable-indev=lavfi, so it has no live audio input whatsoever, does not link
+# libpulse, and /dev/snd is sandbox-blocked. "Unknown input format: 'pulse'" is
+# that, not a bad device name. $HOME/bin/termux-capture accepts the same argv and
+# records via termux-microphone-record instead.
+#
+# The capture block belongs INLINE in ~/.pi/agent/stt.json, NOT in a sidecar
+# behind PI_STT_CONFIG, for two reasons:
+#
+#   1. PI_STT_CONFIG is read once at process start. /reload cannot pick it up, and
+#      pi must be relaunched from a shell that already sourced this file — so it
+#      breaks whenever pi starts from an older shell.
+#   2. It REPLACES the config path rather than merging over it. A capture-only
+#      sidecar therefore loses provider + cleanup and silently falls back to the
+#      built-in Mistral/Voxtral default, which fails confusingly with no key set.
+#
+# So do not export PI_STT_CONFIG here. Verify resolution with:
+#
+#   pi-stt-where        # prints the config file + ffmpegPath pi actually resolved
+#
+# Independent of all config: Android denies the microphone while Termux is in the
+# background (SSH and tmux included), yielding pure digital silence. Only fixing
+# it is keeping the Termux window on screen. There is no way to detect this from
+# inside Termux — dumpsys is sandbox-blocked.
+
+# ── per-machine aliases ─────────────────────────────────────────────────
+
 # ── per-machine aliases ─────────────────────────────────────────────────────
 [[ -f "$HOME/.zsh_aliases" ]] && source "$HOME/.zsh_aliases"
 
