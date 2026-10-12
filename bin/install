@@ -1127,7 +1127,9 @@ if $DO_DOTFILES && ! $NO_PI && [[ -f "$DOTFILES_ROOT/.pi/agent/settings.json" ]]
 			fj_host=$(run as_user f creds get fj-default-host --secrets 2>/dev/null || true)
 			if [[ -n "$fj_host" ]]; then
 				info "injecting fj defaultHost from creds..."
-				run as_user f config set fj.defaultHost "$fj_host" || true
+				# -g on purpose: without it `f config set` writes a *project* ./f.config.json
+				# into whatever directory the installer happened to run from.
+				run as_user f config -g set fj.defaultHost "$fj_host" || true
 			else
 				info "no creds:fj-default-host — f fj will resolve hosts from git origin"
 			fi
