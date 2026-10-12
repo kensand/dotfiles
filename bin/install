@@ -1069,7 +1069,9 @@ fi
 
 # ── 4b. pi coding agent (settings.json tracked; models.json from f creds) ────
 # The tracked .pi/agent/.gitignore whitelist blocks everything but settings.json
-# out of the clone. models.json lives in the f creds store (cred: pi-models).
+# out of the clone. models.json lives in the f creds store as a packed file,
+# keyed file:~/.pi/agent/models.json — ~-relative, so one manifest serves every
+# host (Termux's home is not /home/kenny) and the restore below names no paths.
 if $DO_DOTFILES && ! $NO_PI && [[ -f "$DOTFILES_ROOT/.pi/agent/settings.json" ]]; then
 	if ! have_cmd pi && ! have_cmd npm; then
 		info "node/npm not found; install node first — pi settings still get installed"
@@ -1104,7 +1106,7 @@ if $DO_DOTFILES && ! $NO_PI && [[ -f "$DOTFILES_ROOT/.pi/agent/settings.json" ]]
 			run as_user npm install -g --ignore-scripts @fcli.dev/f ||
 				warn "npm install of fcli failed — models.json restore skipped"
 		else
-			warn "npm missing — cannot install fcli; run 'f pi-models restore' later"
+			warn "npm missing — cannot install fcli; restore packed files later by hand"
 		fi
 	fi
 	if have_cmd f; then
@@ -1124,7 +1126,10 @@ if $DO_DOTFILES && ! $NO_PI && [[ -f "$DOTFILES_ROOT/.pi/agent/settings.json" ]]
 		# fj defaultHost is not tracked — inject it from creds (fj-default-host)
 		# if the store is already unlocked, else leave it out.
 		if ! grep -q defaultHost "$USER_HOME/.f/f.config.json" 2>/dev/null; then
-			fj_host=$(run as_user f creds get fj-default-host --secrets 2>/dev/null || true)
+			# Not a dry run: `run` would print the command, and the printout would
+			# land in fj_host and get written into the config as the host.
+			fj_host=""
+			! $DRY && fj_host=$(as_user f creds get fj-default-host --secrets 2>/dev/null || true)
 			if [[ -n "$fj_host" ]]; then
 				info "injecting fj defaultHost from creds..."
 				# -g on purpose: without it `f config set` writes a *project* ./f.config.json
@@ -1135,8 +1140,8 @@ if $DO_DOTFILES && ! $NO_PI && [[ -f "$DOTFILES_ROOT/.pi/agent/settings.json" ]]
 			fi
 		fi
 		# f creds is a single encrypted file (~/.f/f.creds.enc) that carries the
-		# whole store — including pi-models. There is no import command; you move
-		# the file itself, then unlock it with the passkey.
+		# whole store, including the packed files. There is no import command; you
+		# move the file itself, then unlock it with the passkey.
 		creds_file="${F_CREDS_FILE:-}"
 		if [[ -z "$creds_file" && -t 0 ]]; then
 			read -r -p "  path to your f.creds.enc (enter to skip): " creds_file </dev/tty
@@ -1147,14 +1152,22 @@ if $DO_DOTFILES && ! $NO_PI && [[ -f "$DOTFILES_ROOT/.pi/agent/settings.json" ]]
 			[[ -e "$USER_HOME/.f/f.creds.enc" ]] &&
 				run as_user cp -a "$USER_HOME/.f/f.creds.enc" "$USER_HOME/.f/f.creds.enc.bak"
 			run as_user cp -a "$creds_file" "$USER_HOME/.f/f.creds.enc"
-			if [[ -t 0 ]]; then
-				warn "unlock the store to finish (passkey): f creds unlock"
-				info "then: f pi-models restore"
-			else
-				warn "no terminal for the passkey — run 'f creds unlock && f pi-models restore' on the host"
-			fi
+			[[ -t 0 ]] || warn "no terminal for the passkey — run 'f creds unlock' here"
+		elif [[ ! -f "$USER_HOME/.f/f.creds.enc" ]]; then
+			warn "no creds store here and none imported (F_CREDS_FILE=<path> copies ~/.f/f.creds.enc)"
+		fi
+
+		# Packed files (pi models.json and anything else you carry in the store).
+		# Keys are ~-relative, so the whole manifest can be restored without naming
+		# a single path per host — --force because these are dotfiles-managed files
+		# (unpack writes a .bak for each one it overwrites). Only ever against an
+		# already-unlocked store: an installer must not block on a passkey.
+		if ! $DRY && as_user f creds status 2>/dev/null | grep -q unlocked; then
+			info "restoring packed files (f creds files unpack --all --force)..."
+			run as_user f creds files unpack --all --force ||
+				warn "some packed files did not restore — check 'f creds files ls'"
 		else
-			warn "no creds file given — run 'f creds unlock && f pi-models restore' on the host to get models.json"
+			info "creds locked or absent — after 'f creds unlock': f creds files unpack --all --force"
 		fi
 	fi
 fi
