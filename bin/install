@@ -979,6 +979,10 @@ if $DO_DOTFILES; then
 			info "updating ~/.dotfiles..."
 			run as_user git -C "$DOTDIR" pull --ff-only --quiet ||
 				warn "could not fast-forward ~/.dotfiles; leaving the existing copy"
+			# Re-assert the sparse-checkout: an older install may have cloned
+			# without /.pi/ or /.f/, and git pull alone does not widen it.
+			run as_user git -C "$DOTDIR" sparse-checkout set --no-cone '/tty/' '/bin/install' '/.pi/' '/.f/' || true
+			run as_user git -C "$DOTDIR" checkout --quiet || true
 			DOTFILES_ROOT="$DOTDIR"
 			MODE2=clone
 		else
@@ -1079,13 +1083,26 @@ fi
 # out of the clone. models.json lives in the f creds store as a packed file,
 # keyed file:~/.pi/agent/models.json — ~-relative, so one manifest serves every
 # host (Termux's home is not /home/kenny) and the restore below names no paths.
-if $DO_DOTFILES && ! $NO_PI && [[ -f "$DOTFILES_ROOT/.pi/agent/settings.json" ]]; then
+if $DO_DOTFILES && ! $NO_PI; then
+	if [[ ! -f "$DOTFILES_ROOT/.pi/agent/settings.json" ]]; then
+		warn "no .pi/agent/settings.json in the config source — skipping pi + fcli install."
+		warn "  (the clone may predate the sparse-checkout update; re-run install once more)"
+	fi
+	if [[ -f "$DOTFILES_ROOT/.pi/agent/settings.json" ]]; then
+	# Offline (--source bundle, or no npm): npm global install is impossible, so
+	# say exactly what is missing and how to get it later — settings.json is
+	# still installed, and the creds restore below still runs if the store is
+	# already unlocked.
+	offline_note=false
+	if [[ -n "$SOURCE_DIR" && ! -d "$SOURCE_DIR/.git" ]]; then offline_note=true; fi
 	if ! have_cmd pi && ! have_cmd npm; then
 		info "node/npm not found; install node first — pi settings still get installed"
+		$offline_note && warn "offline host: 'npm' is also how pi + fcli get installed; on a machine with network run: npm install -g --ignore-scripts @earendil-works/pi-coding-agent @fcli.dev/f"
 	elif ! have_cmd pi && have_cmd npm; then
 		info "installing pi coding agent (npm global)..."
 		run as_user npm install -g --ignore-scripts @earendil-works/pi-coding-agent ||
 			warn "npm install of pi failed (network?); settings will be installed anyway"
+		$offline_note && warn "offline host: the pi npm install needs registry access — this bundle cannot ship it"
 	fi
 
 	# Install the tracked settings.json (backup existing first, never clobber).
@@ -1112,8 +1129,10 @@ if $DO_DOTFILES && ! $NO_PI && [[ -f "$DOTFILES_ROOT/.pi/agent/settings.json" ]]
 			info "installing fcli (npm global)..."
 			run as_user npm install -g --ignore-scripts @fcli.dev/f ||
 				warn "npm install of fcli failed — models.json restore skipped"
+			$offline_note && warn "offline host: the fcli npm install needs registry access — models.json restore stays deferred"
 		else
 			warn "npm missing — cannot install fcli; restore packed files later by hand"
+			$offline_note && warn "offline host: install fcli on a machine with network first (npm install -g --ignore-scripts @fcli.dev/f); then 'f creds files unpack --all --force' restores models.json"
 		fi
 	fi
 	if have_cmd f; then
@@ -1176,6 +1195,7 @@ if $DO_DOTFILES && ! $NO_PI && [[ -f "$DOTFILES_ROOT/.pi/agent/settings.json" ]]
 		else
 			info "creds locked or absent — after 'f creds unlock': f creds files unpack --all --force"
 		fi
+	fi
 	fi
 fi
 
