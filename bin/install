@@ -928,6 +928,32 @@ if $DO_PACKAGES; then
 	fi
 fi
 
+# ── nvm + Node.js LTS ──────────────────────────────────────────────────────
+# pi and fcli install via nvm's node (per-user prefix), not the system node
+# (/usr/lib/node_modules is root-owned → EACCES for the user). Always runs
+# (not gated on $DO_PACKAGES) because pi/f need node regardless of the
+# system package step. Skipped on Termux (pkg handles node).
+if ! $IS_TERMUX; then
+	if as_user bash -c 'source ~/.nvm/nvm.sh 2>/dev/null && nvm --version' 2>/dev/null; then
+		skip "nvm already present"
+	elif have_cmd git; then
+		info "installing nvm to ~/.nvm ..."
+		if run as_user bash -c 'curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash'; then
+			zshrc="$USER_HOME/.zshrc"
+			if [[ -f "$zshrc" ]] && ! grep -q 'NVM_DIR' "$zshrc"; then
+				run as_user bash -c 'printf "\n# nvm\nexport NVM_DIR=\"\$HOME/.nvm\"\n[ -s \"\$NVM_DIR/nvm.sh\" ] && \\. \"\$NVM_DIR/nvm.sh\"\n" >> "$1"' _ "$zshrc"
+			fi
+			info "installing Node.js LTS via nvm ..."
+			run as_user bash -c 'source ~/.nvm/nvm.sh && nvm install --lts && nvm alias default lts/*' ||
+				warn "nvm install --lts failed — run 'nvm install --lts' yourself"
+		else
+			warn "nvm install script failed — install manually: https://github.com/nvm-sh/nvm"
+		fi
+	else
+		warn "git is missing; cannot install nvm (needed for node + pi + fcli)"
+	fi
+fi
+
 # ── 2. oh-my-zsh ─────────────────────────────────────────────────────────────
 if $DO_DOTFILES && $WITH_OMZ; then
 	found_omz=""
@@ -1095,13 +1121,23 @@ if $DO_DOTFILES && ! $NO_PI; then
 	# already unlocked.
 	offline_note=false
 	if [[ -n "$SOURCE_DIR" && ! -d "$SOURCE_DIR/.git" ]]; then offline_note=true; fi
-	if ! have_cmd pi && ! have_cmd npm; then
+	# nvm's node lives in ~/.nvm and is not on PATH for non-interactive shells,
+	# so every npm/nvm invocation below sources nvm first. This also avoids the
+	# EACCES on /usr/lib/node_modules that a system node install would hit.
+	NVM_SRC='source "$HOME/.nvm/nvm.sh" 2>/dev/null'
+
+	if ! have_cmd pi && ! as_user bash -c "$NVM_SRC && command -v npm" >/dev/null 2>&1 && ! have_cmd npm; then
 		info "node/npm not found; install node first — pi settings still get installed"
 		$offline_note && warn "offline host: 'npm' is also how pi + fcli get installed; on a machine with network run: npm install -g --ignore-scripts @earendil-works/pi-coding-agent @fcli.dev/f"
-	elif ! have_cmd pi && have_cmd npm; then
-		info "installing pi coding agent (npm global)..."
-		run as_user npm install -g --ignore-scripts @earendil-works/pi-coding-agent ||
+	elif ! have_cmd pi && as_user bash -c "$NVM_SRC && command -v npm" >/dev/null 2>&1; then
+		info "installing pi coding agent (npm global, via nvm)..."
+		run as_user bash -c "$NVM_SRC && npm install -g --ignore-scripts @earendil-works/pi-coding-agent" ||
 			warn "npm install of pi failed (network?); settings will be installed anyway"
+		$offline_note && warn "offline host: the pi npm install needs registry access — this bundle cannot ship it"
+	elif ! have_cmd pi && have_cmd npm; then
+		info "installing pi coding agent (npm global, system node)..."
+		run as_user npm install -g --ignore-scripts @earendil-works/pi-coding-agent ||
+			warn "npm install of pi failed (permissions?); settings will be installed anyway"
 		$offline_note && warn "offline host: the pi npm install needs registry access — this bundle cannot ship it"
 	fi
 
@@ -1125,8 +1161,13 @@ if $DO_DOTFILES && ! $NO_PI; then
 
 	# fcli + creds restore: the personal uck bucket carries f pi-models.
 	if ! have_cmd f; then
-		if have_cmd npm; then
-			info "installing fcli (npm global)..."
+		if as_user bash -c "$NVM_SRC && command -v npm" >/dev/null 2>&1; then
+			info "installing fcli (npm global, via nvm)..."
+			run as_user bash -c "$NVM_SRC && npm install -g --ignore-scripts @fcli.dev/f" ||
+				warn "npm install of fcli failed — models.json restore skipped"
+			$offline_note && warn "offline host: the fcli npm install needs registry access — models.json restore stays deferred"
+		elif have_cmd npm; then
+			info "installing fcli (npm global, system node)..."
 			run as_user npm install -g --ignore-scripts @fcli.dev/f ||
 				warn "npm install of fcli failed — models.json restore skipped"
 			$offline_note && warn "offline host: the fcli npm install needs registry access — models.json restore stays deferred"
