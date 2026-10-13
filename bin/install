@@ -160,10 +160,17 @@ done
 # ─────────────────────────────────────────────────────────────────────────────
 IS_TERMUX=false
 detect_termux() {
-	case "${PREFIX:-}${TERMUX_PREFIX:-}" in
-	*com.termux*) IS_TERMUX=true; return ;;
-	esac
-	[[ -n "${ANDROID_ROOT:-}" ]] && command -v pkg >/dev/null 2>&1 && IS_TERMUX=true
+	# Plain if/elif + explicit return: an "A && B && C=true" list can leave the
+	# assignment unrun while still returning 0, and a list as the function's
+	# last command is fatal under set -e when it fails.
+	if [[ "${PREFIX:-}${TERMUX_PREFIX:-}" == *com.termux* ]]; then
+		IS_TERMUX=true
+	elif [[ -n "${ANDROID_ROOT:-}" ]]; then
+		if command -v pkg >/dev/null 2>&1; then
+			IS_TERMUX=true
+		fi
+	fi
+	return 0
 }
 detect_termux
 
