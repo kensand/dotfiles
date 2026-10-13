@@ -10,6 +10,10 @@
     {
       "name": "default",
       "path": "~/.f/ucks/fcli-ucks/skills/default.md"
+    },
+    {
+      "name": "f-creds",
+      "path": "~/.f/ucks/fcli-ucks/creds/SKILL.md"
     }
   ],
   "fj": {

@@ -22,6 +22,10 @@ bar {
 
 # Layout is computed dynamically by ~/bin/sway-apply-layout
 # (monitors matched by make/model/serial; re-applied on every hotplug event).
+# It encodes the same arrangement as the last hand-written block:
+#   eDP-1  2256x1504                        -> x 0..2256
+#   DP-9   Dell S3225QS 3840x2160 @ scale 1 -> x 2256..6096
+#   DP-10  AOC Q27G1WG4 2560x1440 rotated 270deg -> 1440x2560 logical, x 6096..7536
 output * adaptive_sync off
 exec_always $HOME/bin/sway-apply-layout
 exec_always $HOME/bin/sway-apply-layout --watch
@@ -264,6 +268,7 @@ exec swayidle -w timeout 900 'swaylock -f -c 000000' timeout 900 'systemctl susp
 # output handling still applies because sway-apply-layout lays out monitors above.
 exec sh -c 'command -v way-displays >/dev/null 2>&1 && way-displays > /tmp/way-displays.${XDG_VTNR}.${USER}.log 2>&1'
 exec blueman-applet
+exec solaar
 exec sh -c 'command -v iwgtk >/dev/null 2>&1 && iwgtk -i'
 exec export XDG_CURRENT_DESKTOP=sway && /usr/lib/xdg-desktop-portal -r & /usr/lib/xdg-desktop-portal-wlr
 exec --no-startup-id /usr/lib/polkit-kde-authentication-agent-1
