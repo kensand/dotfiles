@@ -1,0 +1,149 @@
+{
+  "$schema": "/etc/xdg/swaync/configSchema.json",
+
+  "ignore-gtk-theme": true,
+  "cssPriority": "application",
+
+  "positionX": "right",
+  "positionY": "top",
+  "control-center-margin-top": 10,
+  "control-center-margin-bottom": 48,
+  "control-center-margin-right": 10,
+  "control-center-margin-left": 10,
+  "control-center-width": 420,
+  "control-center-height": 760,
+  "notification-window-width": 420,
+  "fit-to-screen": true,
+
+  "layer": "overlay",
+  "control-center-layer": "top",
+  "layer-shell": true,
+  "layer-shell-cover-screen": false,
+
+  "timeout": 10,
+  "timeout-low": 5,
+  "timeout-critical": 0,
+  "relative-timestamps": true,
+  "notification-grouping": true,
+  "notification-2fa-action": true,
+  "notification-inline-replies": false,
+  "image-visibility": "when-available",
+  "notification-icon-size": 48,
+  "notification-body-image-height": 140,
+  "notification-body-image-width": 200,
+  "transition-time": 200,
+  "hide-on-clear": true,
+  "hide-on-action": true,
+  "text-empty": "No notifications",
+  "keyboard-shortcuts": true,
+  "script-fail-notify": true,
+
+  "widgets": [
+    "calendar",
+    "inhibitors",
+    "menubar",
+    "title",
+    "dnd",
+    "mpris",
+    "volume",
+    "backlight",
+    "buttons-grid",
+    "notifications"
+  ],
+  "widget-config": {
+    "calendar": {
+      "show-week-numbers": false,
+      "show-day-label": true,
+      "show-date-label": true
+    },
+    "inhibitors": {
+      "text": "Inhibitors",
+      "button-text": "Clear all",
+      "clear-all-button": true
+    },
+    "title": {
+      "text": "Notifications",
+      "clear-all-button": true,
+      "button-text": "Clear all"
+    },
+    "dnd": {
+      "text": "Do not disturb"
+    },
+    "notifications": {
+      "vexpand": true
+    },
+    "volume": {
+      "label": "Volume",
+      "show-per-app": true,
+      "show-per-app-icon": true,
+      "show-per-app-label": true,
+      "empty-list-label": "No active sink input"
+    },
+    "backlight": {
+      "label": "Brightness",
+      "subsystem": "backlight",
+      "min": 5
+    },
+    "mpris": {
+      "autohide": true,
+      "show-album-art": "when-available",
+      "loop-carousel": false
+    },
+    "menubar": {
+      "menu#power": {
+        "label": "⏻",
+        "position": "right",
+        "actions": [
+          {
+            "label": "Suspend",
+            "command": "systemctl suspend"
+          },
+          {
+            "label": "Lock",
+            "command": "loginctl lock-session"
+          },
+          {
+            "label": "Reboot",
+            "command": "systemctl reboot"
+          },
+          {
+            "label": "Power off",
+            "command": "systemctl poweroff"
+          }
+        ]
+      }
+    },
+    "buttons-grid": {
+      "buttons-per-row": 5,
+      "actions": [
+        {
+          "label": "wifi",
+          "type": "toggle",
+          "active": true,
+          "command": "sh -c '[[ $SWAYNC_TOGGLE_STATE == true ]] && nmcli radio wifi on || nmcli radio wifi off'",
+          "update-command": "sh -c '[[ $(nmcli radio wifi) == \"enabled\" ]] && echo true || echo false'"
+        },
+        {
+          "label": "bt",
+          "type": "toggle",
+          "active": false,
+          "command": "sh -c '[[ $SWAYNC_TOGGLE_STATE == true ]] && bluetoothctl power on || bluetoothctl power off'",
+          "update-command": "bluetoothctl show | grep -qi 'Powered: yes' && echo true || echo false"
+        },
+        {
+          "label": "dnd",
+          "type": "toggle",
+          "command": "swaync-client -d"
+        },
+        {
+          "label": "wall",
+          "command": "wal -R"
+        },
+        {
+          "label": "btop",
+          "command": "kitty -e btop"
+        }
+      ]
+    }
+  }
+}

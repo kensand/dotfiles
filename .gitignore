@@ -39,6 +39,13 @@
 !.config/way-displays
 !.config/way-displays/**
 
+# Notification centre. config.json must stay strict JSON: swaync parses it with
+# json-glib without relaxed mode, so // comments (which waybar's config.jsonc
+# tolerates) make the whole file fail to load and swaync silently falls back to
+# its built-in defaults.
+!.config/swaync
+!.config/swaync/**
+
 # Systemd user services
 !.config/systemd/user/
 !.config/systemd/user/**

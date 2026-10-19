@@ -1,0 +1,265 @@
+/* ────────────────────────────────────────────────────────────────────────────
+ * swaync — follows the pywal palette, same as .config/waybar/style.css.
+ *
+ * Both this file and waybar import the same generated sheet, so `wal -i <img>`
+ * recolors the bar and the notification center together. The path resolves
+ * relative to this file: ~/.config/swaync/ → ../../.cache/wal/.
+ *
+ * Upstream defaults live in :root custom properties and @define-color
+ * fallbacks (data/style/style.scss + pre-gtk4-variables.scss in
+ * SwayNotificationCenter). We override both because swaync still reads the
+ * @define-color names when the GTK version predates CSS custom properties.
+ *
+ * Colors are the pywal/waybar convention:
+ *   color0 background   color7 light fg     color15 bright fg / borders
+ *   color1..6 accents   color8..14 the same, bright
+ *
+ * swaync does NOT watch imported files: when wal rewrites the palette, run
+ * `swaync-client -rs` to re-read this stylesheet. Bind it in sway/config:
+ *   exec sh -c 'wal -i "$(chwall)" && swaync-client -rs'
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+@import '../../.cache/wal/colors-waybar.css';
+
+:root {
+  --cc-bg: alpha(@color0, 0.92);
+  --noti-border-color: alpha(@color15, 0.25);
+  --noti-bg: @color0;
+  --noti-bg-alpha: 0.92;
+  --noti-bg-darker: mix(@color0, @color8, 0.5);
+  --noti-bg-hover: mix(@color0, @color8, 0.75);
+  --noti-bg-focus: alpha(@color8, 0.6);
+  --noti-close-bg: @color8;
+  --noti-close-bg-hover: @color7;
+
+  --text-color: @color7;
+  --text-color-disabled: @color8;
+  --bg-selected: @color4;
+
+  /* Upstream reads --noti-bg-alt here; if it is unset the per-app volume
+     panel resolves to rgba(, ) — invalid — and GTK paints a white slab. */
+  --noti-bg-alt: mix(@color0, @color8, 0.55);
+
+  --border-radius: 12px;
+}
+
+/* Legacy @define-color path for older GTK / the built-in fallbacks. */
+@define-color cc_bg alpha(@color0, 0.92);
+@define-color noti_bg alpha(@color0, 0.92);
+@define-color noti_bg_darker mix(@color0, @color8, 0.5);
+@define-color noti_bg_hover mix(@color0, @color8, 0.75);
+@define-color noti_bg_alt mix(@color0, @color8, 0.55);
+@define-color noti_border_color alpha(@color15, 0.25);
+@define-color text_color @color7;
+@define-color text_color_disabled @color8;
+
+* {
+  font-family: "JetBrainsMono Nerd Font", "FiraCode Nerd Font", monospace;
+  font-size: 100%;
+}
+
+/* Pop-up windows themselves stay transparent; only .notification paints. */
+notificationwindow,
+blankwindow {
+  background: transparent;
+}
+
+.control-center {
+  border: 1px solid alpha(@color15, 0.5);
+  box-shadow: 0 2px 18px 4px alpha(#000000, 0.55);
+}
+
+/* ── Notifications ────────────────────────────────────────────────────────── */
+
+.notification {
+  box-shadow: none;
+}
+
+.notification.low,
+.notification.normal {
+  border-color: alpha(@color15, 0.25);
+}
+
+/* Critical keeps a warm border so it is identifiable without reading it. */
+.notification.critical {
+  border: 1px solid @color1;
+}
+
+.notification .notification-default-action,
+.notification .notification-action {
+  color: @color7;
+}
+
+.close-button,
+.close-button:hover {
+  -gtk-icon-shadow: none;
+}
+
+/* Group headers (app name) read as section headings. */
+.notification-group-headers,
+.notification-group-header,
+.notification-group-icon {
+  color: @color15;
+  font-weight: bold;
+}
+
+/* ── Control-center widgets ─────────────────────────────────────────────────
+ * Each widget gets its own rounded panel so the CC reads as a grid of
+ * cards rather than one flat slab.
+ * ────────────────────────────────────────────────────────────────────────── */
+
+.widget-title,
+.widget-dnd,
+.widget-inhibitors,
+.widget-calendar,
+.widget-label,
+.widget-menubar,
+.widget-mpris,
+.widget-volume,
+.widget-backlight,
+.widget-buttons-grid,
+.widget-slider {
+  margin: 6px 10px;
+  padding: 10px;
+  border-radius: 12px;
+  background-color: alpha(@color0, 0.55);
+  border: 1px solid alpha(@color15, 0.15);
+}
+
+.widget-title {
+  color: @color15;
+  font-size: 115%;
+  font-weight: bold;
+}
+
+/* Buttons come from widget-title / widget-inhibitors / the menubar /
+ * buttons-grid. Toggle state is GTK's :checked, not .active. */
+.widget-title button,
+.widget-inhibitors button,
+.widget-menubar button,
+.widget-buttons-grid flowboxchild > button {
+  color: @color7;
+  background-color: alpha(@color8, 0.55);
+  border: 1px solid transparent;
+}
+
+.widget-title button:hover,
+.widget-inhibitors button:hover,
+.widget-menubar button:hover,
+.widget-buttons-grid flowboxchild > button:hover {
+  background-color: @color8;
+  color: @color15;
+}
+
+/* Toggle buttons (wifi / bt / dnd) light up with the accent when on. */
+.widget-buttons-grid flowboxchild > button.toggle:checked,
+.widget-menubar button.toggle:checked {
+  background-color: @color4;
+  color: @color0;
+  border-color: alpha(@color15, 0.6);
+}
+
+.widget-buttons-grid flowboxchild > button {
+  min-height: 40px;
+  margin: 3px;
+}
+
+/* DND is a GtkSwitch, not a button. */
+.widget-dnd switch {
+  background-color: alpha(@color8, 0.8);
+}
+
+.widget-dnd switch:checked {
+  background-color: @color4;
+}
+
+/* Sliders: trough dim, the filled part the accent colour. Volume, backlight
+ * and generic sliders are all .widget-slider subclasses. */
+.widget-slider trough,
+.widget-volume trough,
+.widget-backlight trough {
+  min-height: 8px;
+  border-radius: 6px;
+  background-color: alpha(@color8, 0.8);
+}
+
+.widget-slider highlight,
+.widget-volume highlight,
+.widget-backlight highlight {
+  border-radius: 6px;
+  background-color: @color4;
+}
+
+/* Calendar: upstream already sizes .day-label / .date-label; only the
+ * neighbouring-month cells need dimming. */
+.widget-calendar .calendar-container calendar {
+  color: @color7;
+}
+
+.widget-calendar .calendar-container calendar headerbutton {
+  color: @color15;
+  font-weight: bold;
+}
+
+/* Neighbouring-month cells: GTK pads the grid to a whole week either side of
+ * the month. Day 1 always sits at index (1 - first_weekday) mod 7, so the
+ * leading pad is every index below that offset and the trailing pad is the
+ * remainder past the last day. 6 cells covers any first weekday; 42 caps it
+ * at the largest possible grid. */
+.widget-calendar .calendar-container calendar :nth-child(-n+6):nth-child(7n + 1),
+.widget-calendar .calendar-container calendar :nth-child(-n+6):nth-child(7n + 2),
+.widget-calendar .calendar-container calendar :nth-child(-n+6):nth-child(7n + 3),
+.widget-calendar .calendar-container calendar :nth-child(-n+6):nth-child(7n + 4),
+.widget-calendar .calendar-container calendar :nth-child(-n+6):nth-child(7n + 5),
+.widget-calendar .calendar-container calendar :nth-child(-n+6):nth-child(7n + 6),
+.widget-calendar .calendar-container calendar :nth-child(n+36):nth-child(-n+42) {
+  color: @color8;
+}
+
+.widget-calendar .day-label,
+.widget-calendar .date-label {
+  color: @color15;
+}
+
+/* Mpris (now playing) */
+.widget-mpris,
+.widget-mpris-player {
+  color: @color7;
+}
+
+.widget-mpris-title {
+  font-weight: bold;
+  font-size: 110%;
+}
+
+.widget-mpris-subtitle {
+  color: @color8;
+  font-size: 95%;
+}
+
+/* Empty state */
+.control-center-list-placeholder {
+  color: @color8;
+}
+
+/* ── Upstream's own comment hook ────────────────────────────────────────────
+ * Tweak these while iterating; after editing, apply with `swaync-client -rs`.
+ *
+ *   .control-center                    the whole panel
+ *   .notification                      one notification card
+ *   .notification.critical             critical urgency
+ *   .notification-group-headers        the app-name heading above a group
+ *   .widget-title                      "Notifications" row + clear button
+ *   .widget-dnd                        the Do-Not-Disturb switch row
+ *   .widget-calendar .calendar-container
+ *   .widget-volume / .widget-backlight sliders
+ *   .widget-volume .per-app-volume     the expandable per-app list
+ *   .widget-mpris-title / -subtitle    now playing
+ *   .widget-buttons-grid flowboxchild > button.toggle:checked
+ *                                      active wifi / bt / dnd tiles
+ *   .widget-menubar .menu-button-bar   the menubar row
+ *   .widget-menubar revealer button    items inside the ⏻ dropdown
+ *
+ * Palette comes from ~/.cache/wal/colors-waybar.css (@color0..@color15);
+ * regenerate it with `wal -i <wallpaper>`.
+ * ─────────────────────────────────────────────────────────────────────────── */
