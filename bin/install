@@ -633,8 +633,13 @@ if [[ "$MODE" == desktop ]]; then
 			discord konsole kitty
 
 		info "desktop portal & session..."
+		# The portal stack is routed by ~/.config/xdg-desktop-portal/portals.conf:
+		# kde serves everything (including FileChooser, so Firefox's "browse for
+		# file" gets the KDE picker), wlr serves ScreenCast/Screenshot, gtk stays
+		# as the Settings/notification fallback.
 		pacman_install xdg-desktop-portal xdg-desktop-portal-wlr \
-			xdg-desktop-portal-gtk xdg-utils gnome-keyring qt6-wayland
+			xdg-desktop-portal-kde xdg-desktop-portal-gtk xdg-utils \
+			gnome-keyring qt6-wayland
 
 		info "fonts..."
 		pacman_install ttf-fira-code woff2-font-awesome
@@ -822,10 +827,12 @@ if [[ "$MODE" == desktop ]]; then
 		fi
 
 		# systemd user services from dotfiles
-		if [[ -f "$USER_HOME/.config/systemd/user/xdg-desktop-portal.service" ]]; then
-			info "enabling xdg-desktop-portal user service..."
+		# The portal daemon and its backends are all dbus-activated from the vendor
+		# units now, so they need no enable here; sway starts them once the session
+		# env is imported. Just reload so a tracked drop-in is picked up.
+		if [[ -d "$USER_HOME/.config/systemd/user" ]]; then
+			info "reloading systemd user config..."
 			run as_user systemctl --user daemon-reload 2>/dev/null || true
-			run as_user systemctl --user enable xdg-desktop-portal.service 2>/dev/null || true
 		fi
 	fi
 

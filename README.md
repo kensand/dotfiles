@@ -186,6 +186,31 @@ The sway config guards its optional autostarts (`way-displays`, `sov`, `iwgtk`,
 
 It's invoked on Sway startup via `~/.config/sway/config`.
 
+## Portal stack (desktop)
+
+Wayland apps don't draw their own file pickers, share screens, or open URIs — they ask **xdg-desktop-portal**, which forwards each request to a backend implementation. Getting this wrong is invisible: the app just shows no dialog and logs nothing.
+
+Two files own it:
+
+- `~/.config/xdg-desktop-portal/portals.conf` — which backend serves which interface. `default=kde` (so FileChooser gets the KDE/Dolphin picker), `wlr` for ScreenCast/Screenshot, `Inhibit=none` so Firefox uses Wayland's idle-inhibit instead of a `org.gnome.SessionManager` call Sway doesn't implement.
+- `~/.config/environment.d/qt-wayland.conf` — `QT_QPA_PLATFORM=wayland`.
+
+The non-obvious part: portal backends are **dbus-activated by `user@1000.service`, which starts with no `DISPLAY` or `WAYLAND_DISPLAY`**. Left alone, every backend aborts at startup — `xdg-desktop-portal-kde` with `could not connect to display` / `Could not load the Qt platform plugin "xcb"`, `xdg-desktop-portal-gtk` with `cannot open display:` — and then hits `start-limit-hit` so it stops even trying. Sway therefore runs, before starting any portal unit:
+
+```swayconfig
+exec systemctl --user import-environment DISPLAY WAYLAND_DISPLAY XDG_CURRENT_DESKTOP XDG_SESSION_TYPE QT_QPA_PLATFORM
+```
+
+Without that `import-environment`, nothing in the portal stack can ever launch from a dbus activation, no matter what `portals.conf` says. Sway also `stop`s then `start`s the units so a daemon dbus-activated during boot can't coexist with the session one and steal the wlr backend's bus name (`failed to acquire service name: File exists`).
+
+Diagnose with:
+
+```sh
+systemctl --user show-environment | grep -E 'DISPLAY|WAYLAND'   # must not be empty
+journalctl --user --since today | grep -iE 'portal|cannot open display'
+busctl --user list | grep impl.portal.desktop                   # who owns each backend
+```
+
 ## What the tty config does
 
 | Behaviour | Detail |
@@ -209,6 +234,9 @@ On the desktop, `~/.zshrc` is a one-line `source "$HOME/tty/zshrc"`, so editing 
 | ---- | ------- |
 | `tty/` | Shared zsh + tmux config for headless hosts (and the desktop's real shell config) |
 | `tty/update.sh` | Self-update: 13-day cooldown, fast-forward only, lockfile, one-line notice |
+| `.config/xdg-desktop-portal/portals.conf` | Portal backend routing (kde default, wlr for capture) |
+| `.config/environment.d/qt-wayland.conf` | `QT_QPA_PLATFORM=wayland`, keeps Qt portal services off xcb |
+| `.config/systemd/user/xdg-desktop-portal.service.d/` | Drop-in ordering the KDE backend behind the portal daemon |
 | `.config/sway/` | Sway window manager config |
 | `.config/waybar/` | Waybar panel config |
 | `.config/fuzzel/` | App launcher |

@@ -270,7 +270,15 @@ exec sh -c 'command -v way-displays >/dev/null 2>&1 && way-displays > /tmp/way-d
 exec blueman-applet
 exec solaar
 exec sh -c 'command -v iwgtk >/dev/null 2>&1 && iwgtk -i'
-exec export XDG_CURRENT_DESKTOP=sway && /usr/lib/xdg-desktop-portal -r & /usr/lib/xdg-desktop-portal-wlr
+# Portal stack. The user manager starts with no DISPLAY/WAYLAND_DISPLAY, so
+# dbus-activated portal backends (xdg-desktop-portal-kde, -gtk) abort with
+# "could not connect to display" unless we hand them the session env first.
+# Routing lives in ~/.config/xdg-desktop-portal/portals.conf (kde by default,
+# wlr for ScreenCast/Screenshot). Backend units are pulled in via the
+# user@1000 systemd session, not from sway, so they stay up after sway exits.
+exec systemctl --user import-environment DISPLAY WAYLAND_DISPLAY XDG_CURRENT_DESKTOP XDG_SESSION_TYPE QT_QPA_PLATFORM
+exec systemctl --user stop xdg-desktop-portal.service plasma-xdg-desktop-portal-kde.service xdg-desktop-portal-wlr.service
+exec systemctl --user start xdg-desktop-portal.service plasma-xdg-desktop-portal-kde.service xdg-desktop-portal-wlr.service
 exec --no-startup-id /usr/lib/polkit-kde-authentication-agent-1
 exec gnome-keyring-daemon --start --foreground --components=secrets
 exec --no-startup-id sh -c 'command -v thunderbird >/dev/null 2>&1 && swaymsg "workspace 0; exec thunderbird;"'

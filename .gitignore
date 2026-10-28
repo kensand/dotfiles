@@ -32,6 +32,14 @@
 # Sway / Wayland
 !.config/sway
 !.config/sway/**
+!.config/xdg-desktop-portal
+!.config/xdg-desktop-portal/**
+
+# Qt platform pin. Without QT_QPA_PLATFORM=wayland the KDE portal backend
+# defaults to xcb and aborts with "could not connect to display" whenever
+# dbus activation starts it outside sway's own environment.
+!.config/environment.d
+!.config/environment.d/**
 !.config/waybar
 !.config/waybar/**
 !.config/fuzzel
@@ -47,8 +55,16 @@
 !.config/swaync/**
 
 # Systemd user services
-!.config/systemd/user/
+# No trailing slash on the directory patterns: a pattern ending in `/` matches
+# directories only, and git does not descend into a directory it has not
+# re-included — so `!.config/systemd/user/` silently whitelisted nothing.
+!.config/systemd
+!.config/systemd/user
 !.config/systemd/user/**
+# *.wants/ and *.requires/ are symlinks `systemctl enable` generates, pointing
+# at absolute vendor paths — machine state, not config.
+.config/systemd/user/*.wants
+.config/systemd/user/*.requires
 
 # Wallpaper script (submodule)
 !.config/Daily-Reddit-Wallpaper
