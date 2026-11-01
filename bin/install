@@ -367,6 +367,39 @@ have_cmd() {
 	return 1
 }
 
+# cmp(1) lives in diffutils, which minimal images and the headless package list
+# do not guarantee. Both uses sit inside an if-condition, where the 127 from a
+# missing cmp is swallowed and the branch silently flips -- a differing file
+# looks identical, so a backup that should have been taken is not. Compare with
+# coreutils cksum instead, which is in base on the pacman distros and in the
+# essential set on the apt/dnf/zypper/apk paths where the installer already
+# assumes standard file utils.
+same_file() {
+	[[ -f "$1" && -f "$2" ]] || return 1
+	[[ "$(cksum <"$1" 2>/dev/null)" == "$(cksum <"$2" 2>/dev/null)" ]]
+}
+
+# Does the TARGET USER have this command? have_cmd() probes the installer's own
+# PATH, which cannot see a per-user nvm prefix (~/.nvm/versions/node/*/bin) when
+# running as root via --user/sudo -E. pi and fcli install into exactly that
+# prefix, so every `have_cmd f` / `have_cmd pi` gate read false on a fresh
+# install and silently skipped the whole config + creds section.
+user_has_cmd() {
+	local c
+	for c in "$@"; do
+		as_user bash -c 'source "$HOME/.nvm/nvm.sh" 2>/dev/null; command -v "$1" >/dev/null 2>&1' _ "$c" && return 0
+		have_cmd "$c" && return 0
+	done
+	return 1
+}
+
+# Run f as the target user with nvm sourced. A bare `as_user f ...` uses the
+# installer's PATH and cannot see f in the nvm prefix, so it exits 127 and the
+# surrounding "if f available" work never happens.
+run_f() {
+	as_user bash -c 'source "$HOME/.nvm/nvm.sh" 2>/dev/null; exec f "$@"' _ "$@"
+}
+
 DOTDIR="$USER_HOME/.dotfiles"
 BACKUP_ROOT="$USER_HOME/.dotfiles-tty-backup"
 
@@ -946,9 +979,18 @@ if ! $IS_TERMUX; then
 	elif have_cmd git; then
 		info "installing nvm to ~/.nvm ..."
 		if run as_user bash -c 'curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash'; then
-			zshrc="$USER_HOME/.zshrc"
-			if [[ -f "$zshrc" ]] && ! grep -q 'NVM_DIR' "$zshrc"; then
-				run as_user bash -c 'printf "\n# nvm\nexport NVM_DIR=\"\$HOME/.nvm\"\n[ -s \"\$NVM_DIR/nvm.sh\" ] && \\. \"\$NVM_DIR/nvm.sh\"\n" >> "$1"' _ "$zshrc"
+			# nvm sourcing belongs in ~/.zshrc.local, never in ~/.zshrc: in the
+			# headless layout ~/.zshrc is a symlink into $DOTFILES_ROOT/tty, so
+			# appending here writes machine-specific lines into *tracked* config.
+			# That trips update.sh (dirty tree -> self-update silently stops) and
+			# pushes them out to every other host. tty/zshrc sources ~/.zshrc.local
+			# last, which is where per-machine paths belong.
+			zshrc_local="$USER_HOME/.zshrc.local"
+			if [[ -f "$zshrc_local" ]] && grep -q 'NVM_DIR' "$zshrc_local"; then
+				skip "nvm already sourced in ~/.zshrc.local"
+			else
+				info "adding nvm to ~/.zshrc.local ..."
+				run as_user bash -c 'printf "\n# nvm\nexport NVM_DIR=\"\$HOME/.nvm\"\n[ -s \"\$NVM_DIR/nvm.sh\" ] && \\. \"\$NVM_DIR/nvm.sh\"\n" >> "$1"' _ "$zshrc_local"
 			fi
 			info "installing Node.js LTS via nvm ..."
 			run as_user bash -c 'source ~/.nvm/nvm.sh && nvm install --lts && nvm alias default lts/*' ||
@@ -1084,7 +1126,7 @@ if $DO_DOTFILES; then
 		fi
 
 		if $COPY_FILES; then
-			if [[ -e "$dst" ]] && ! cmp -s "$src" "$dst"; then
+			if [[ -e "$dst" ]] && ! same_file "$src" "$dst"; then
 				run as_user mkdir -p "$BACKUP_ROOT/$STAMP"
 				run as_user cp -a "$dst" "$BACKUP_ROOT/$STAMP/$f"
 				info "backed up old .$f to $BACKUP_ROOT/$STAMP/$f"
@@ -1133,15 +1175,15 @@ if $DO_DOTFILES && ! $NO_PI; then
 	# EACCES on /usr/lib/node_modules that a system node install would hit.
 	NVM_SRC='source "$HOME/.nvm/nvm.sh" 2>/dev/null'
 
-	if ! have_cmd pi && ! as_user bash -c "$NVM_SRC && command -v npm" >/dev/null 2>&1 && ! have_cmd npm; then
+	if ! user_has_cmd pi && ! as_user bash -c "$NVM_SRC && command -v npm" >/dev/null 2>&1 && ! have_cmd npm; then
 		info "node/npm not found; install node first — pi settings still get installed"
 		$offline_note && warn "offline host: 'npm' is also how pi + fcli get installed; on a machine with network run: npm install -g --ignore-scripts @earendil-works/pi-coding-agent @fcli.dev/f"
-	elif ! have_cmd pi && as_user bash -c "$NVM_SRC && command -v npm" >/dev/null 2>&1; then
+	elif ! user_has_cmd pi && as_user bash -c "$NVM_SRC && command -v npm" >/dev/null 2>&1; then
 		info "installing pi coding agent (npm global, via nvm)..."
 		run as_user bash -c "$NVM_SRC && npm install -g --ignore-scripts @earendil-works/pi-coding-agent" ||
 			warn "npm install of pi failed (network?); settings will be installed anyway"
 		$offline_note && warn "offline host: the pi npm install needs registry access — this bundle cannot ship it"
-	elif ! have_cmd pi && have_cmd npm; then
+	elif ! user_has_cmd pi && have_cmd npm; then
 		info "installing pi coding agent (npm global, system node)..."
 		run as_user npm install -g --ignore-scripts @earendil-works/pi-coding-agent ||
 			warn "npm install of pi failed (permissions?); settings will be installed anyway"
@@ -1151,7 +1193,7 @@ if $DO_DOTFILES && ! $NO_PI; then
 	# Install the tracked settings.json (backup existing first, never clobber).
 	pi_src="$DOTFILES_ROOT/.pi/agent/settings.json"
 	pi_dst="$USER_HOME/.pi/agent/settings.json"
-	if [[ -e "$pi_dst" ]] && ! cmp -s "$pi_src" "$pi_dst"; then
+	if [[ -e "$pi_dst" ]] && ! same_file "$pi_src" "$pi_dst"; then
 		STAMP_PI=$(date +%Y%m-%dT%H%M%S)
 		run as_user mkdir -p "$BACKUP_ROOT/$STAMP_PI"
 		run as_user cp -a "$pi_dst" "$BACKUP_ROOT/$STAMP_PI/pi-settings.json"
@@ -1167,7 +1209,7 @@ if $DO_DOTFILES && ! $NO_PI; then
 	fi
 
 	# fcli + creds restore: the personal uck bucket carries f pi-models.
-	if ! have_cmd f; then
+	if ! user_has_cmd f; then
 		if as_user bash -c "$NVM_SRC && command -v npm" >/dev/null 2>&1; then
 			info "installing fcli (npm global, via nvm)..."
 			run as_user bash -c "$NVM_SRC && npm install -g --ignore-scripts @fcli.dev/f" ||
@@ -1183,9 +1225,29 @@ if $DO_DOTFILES && ! $NO_PI; then
 			$offline_note && warn "offline host: install fcli on a machine with network first (npm install -g --ignore-scripts @fcli.dev/f); then 'f creds files unpack --all --force' restores models.json"
 		fi
 	fi
-	if have_cmd f; then
-		# Personal uck bucket (forged into the config the user keeps locally).
-		if [[ -f "$DOTFILES_ROOT/.f/f.config.json" ]] && ! grep -q kensand-fcli-ucks "$USER_HOME/.f/f.config.json" 2>/dev/null; then
+	if user_has_cmd f; then
+		# Personal uck bucket, copied from the tracked config.
+		#
+		# Two separate reasons this used to be dead code on a fresh host:
+		#
+		#   1. The enclosing `if have_cmd f` probed the installer's PATH. f lands
+		#      in the target user's nvm prefix, invisible to root, so the whole
+		#      block was skipped. (Fixed by user_has_cmd above.)
+		#   2. The guard read  [[ -f src ]] && ! grep -q kensand-fcli-ucks dst.
+		#      Installing fcli just above makes `f` write a ~/.f/f.config.json
+		#      holding only the default upstream uck, so dst now exists; the grep
+		#      is the only thing that can distinguish "already merged" from "fresh
+		#      default", and on a real re-run it is also the only correct test.
+		#
+		# Decide from what dst actually contains: apply unless it already names the
+		# personal bucket.
+		f_cfg_src="$DOTFILES_ROOT/.f/f.config.json"
+		f_cfg_dst="$USER_HOME/.f/f.config.json"
+		f_cfg_has_personal=false
+		if [[ -f "$f_cfg_dst" ]] && grep -q kensand-fcli-ucks "$f_cfg_dst" 2>/dev/null; then
+			f_cfg_has_personal=true
+		fi
+		if [[ -f "$f_cfg_src" ]] && ! $f_cfg_has_personal; then
 			info "merging fcli uck bucket config..."
 			run as_user mkdir -p "$USER_HOME/.f"
 			# Backup only if there is something to back up: `cp` of a missing file is
@@ -1195,7 +1257,7 @@ if $DO_DOTFILES && ! $NO_PI; then
 				run as_user cp -a "$USER_HOME/.f/f.config.json" "$USER_HOME/.f/f.config.json.bak"
 			fi
 			run as_user cp -a "$DOTFILES_ROOT/.f/f.config.json" "$USER_HOME/.f/f.config.json"
-			run as_user f up 2>/dev/null || warn "'f up' failed; run it by hand to fetch the uck bucket"
+			run_f up 2>/dev/null || warn "'f up' failed; run it by hand to fetch the uck bucket"
 		fi
 		# fj defaultHost is not tracked — inject it from creds (fj-default-host)
 		# if the store is already unlocked, else leave it out.
@@ -1203,12 +1265,12 @@ if $DO_DOTFILES && ! $NO_PI; then
 			# Not a dry run: `run` would print the command, and the printout would
 			# land in fj_host and get written into the config as the host.
 			fj_host=""
-			! $DRY && fj_host=$(as_user f creds get fj-default-host --secrets 2>/dev/null || true)
+			! $DRY && fj_host=$(run_f creds get fj-default-host --secrets 2>/dev/null || true)
 			if [[ -n "$fj_host" ]]; then
 				info "injecting fj defaultHost from creds..."
 				# -g on purpose: without it `f config set` writes a *project* ./f.config.json
 				# into whatever directory the installer happened to run from.
-				run as_user f config -g set fj.defaultHost "$fj_host" || true
+				run_f config -g set fj.defaultHost "$fj_host" || true
 			else
 				info "no creds:fj-default-host — f fj will resolve hosts from git origin"
 			fi
@@ -1236,9 +1298,9 @@ if $DO_DOTFILES && ! $NO_PI; then
 		# a single path per host — --force because these are dotfiles-managed files
 		# (unpack writes a .bak for each one it overwrites). Only ever against an
 		# already-unlocked store: an installer must not block on a passkey.
-		if ! $DRY && as_user f creds status 2>/dev/null | grep -q unlocked; then
+		if ! $DRY && run_f creds status 2>/dev/null | grep -q unlocked; then
 			info "restoring packed files (f creds files unpack --all --force)..."
-			run as_user f creds files unpack --all --force ||
+			run_f creds files unpack --all --force ||
 				warn "some packed files did not restore — check 'f creds files ls'"
 		else
 			info "creds locked or absent — after 'f creds unlock': f creds files unpack --all --force"
@@ -1249,7 +1311,22 @@ fi
 
 # ── 5. login shell ───────────────────────────────────────────────────────────
 if $DO_DOTFILES && ! $NO_CHSH; then
-	zsh_bin=$(command -v zsh || true)
+	# Prefer a path /etc/shells actually lists: chsh(1) warns about (and some
+	# shadow versions reject) a shell missing from it, and `command -v` happily
+	# returns /usr/sbin/zsh via a sbin symlink even when only /usr/bin/zsh is
+	# registered. Fall back to command -v where /etc/shells does not exist
+	# (Termux, slim images).
+	zsh_bin=""
+	if [[ -r /etc/shells ]]; then
+		for _sh in /bin/zsh /usr/bin/zsh /usr/local/bin/zsh /usr/sbin/zsh "$(command -v zsh 2>/dev/null || true)"; do
+			[[ -n "$_sh" ]] || continue
+			[[ -x "$_sh" ]] || continue
+			grep -qxF "$_sh" /etc/shells 2>/dev/null || continue
+			zsh_bin="$_sh"
+			break
+		done
+	fi
+	[[ -n "$zsh_bin" ]] || zsh_bin=$(command -v zsh || true)
 	if [[ -z "$zsh_bin" ]]; then
 		warn "zsh not installed; leaving the login shell alone"
 	elif $IS_TERMUX; then
